@@ -90,6 +90,10 @@ import kotlin.collections.ArrayList
 import kotlin.reflect.KClass
 import net.corda.core.crypto.generateKeyPair as cryptoGenerateKeyPair
 
+data class AppClassLoader(val version: Int) : ClassLoader()
+
+val appClassLoader = AppClassLoader(1)
+
 /**
  * A base node implementation that can be customised either for production (with real implementations that do real
  * I/O), or a mock implementation suitable for unit test environments.
@@ -162,6 +166,10 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
     open fun start() {
         require(!started) { "Node has already been started" }
+
+        println("=============================")
+        println(appClassLoader.hashCode())
+        println("=============================")
 
         if (configuration.devMode) {
             log.warn("Corda node is running in dev mode.")
@@ -305,6 +313,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
                 }
                 .forEach {
                     try {
+                        println("384: ${it.classLoader}")
                         registerInitiatedFlowInternal(it, track = false)
                     } catch (e: NoSuchMethodException) {
                         log.error("${it.name}, as an initiated flow, must have a constructor with a single parameter " +
@@ -341,12 +350,19 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
     private fun <F : FlowLogic<*>> registerInitiatedFlowInternal(initiatedFlow: Class<F>, track: Boolean): Observable<F> {
         val ctor = initiatedFlow.getDeclaredConstructor(Party::class.java).apply { isAccessible = true }
+        assert(ctor.javaClass.classLoader == appClassLoader)
+        println("CTOR CLASSLOADER: ${initiatedFlow.classLoader}")
         val initiatingFlow = initiatedFlow.requireAnnotation<InitiatedBy>().value.java
         val (version, classWithAnnotation) = initiatingFlow.flowVersionAndInitiatingClass
         require(classWithAnnotation == initiatingFlow) {
             "${InitiatingFlow::class.java.name} must be annotated on ${initiatingFlow.name} and not on a super-type"
         }
-        val flowFactory = InitiatedFlowFactory.CorDapp(version, { ctor.newInstance(it) })
+        val flowFactory = InitiatedFlowFactory.CorDapp(version, {
+            val out = ctor.newInstance(it)
+            println("${out.javaClass.classLoader} == ${appClassLoader}")
+            assert(out.javaClass.classLoader == appClassLoader)
+            out
+        })
         val observable = internalRegisterFlowFactory(initiatingFlow, flowFactory, initiatedFlow, track)
         log.info("Registered ${initiatingFlow.name} to initiate ${initiatedFlow.name} (version $version)")
         return observable
@@ -424,7 +440,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
     protected open fun makeTransactionStorage(): WritableTransactionStorage = DBTransactionStorage()
 
-    private fun scanCordapps(): ScanResult? {
+    private fun  scanCordapps(): ScanResult? {
         val scanPackage = System.getProperty("net.corda.node.cordapp.scan.package")
         val paths = if (scanPackage != null) {
             // Rather than looking in the plugins directory, figure out the classpath for the given package and scan that
@@ -432,7 +448,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
             // them to the plugins directory for each node.
             check(configuration.devMode) { "Package scanning can only occur in dev mode" }
             val resource = scanPackage.replace('.', '/')
-            javaClass.classLoader.getResources(resource)
+            appClassLoader.getResources(resource)
                     .asSequence()
                     .map {
                         val uri = if (it.protocol == "jar") {
@@ -460,8 +476,15 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     private fun <T : Any> ScanResult.getClassesWithAnnotation(type: KClass<T>, annotation: KClass<out Annotation>): List<Class<out T>> {
         fun loadClass(className: String): Class<out T>? {
             return try {
-                // TODO Make sure this is loaded by the correct class loader
-                Class.forName(className, false, javaClass.classLoader).asSubclass(type.java)
+                val out = appClassLoader.loadClass(className) as Class<T>
+                assert(out.classLoader is AppClassLoader)
+                if(out.classLoader is AppClassLoader) {
+                    println("YES IT IS")
+                } else {
+                    println("NO IT ISNT")
+                }
+                println("OUT: ${out.classLoader}")
+                out
             } catch (e: ClassCastException) {
                 log.warn("As $className is annotated with ${annotation.qualifiedName} it must be a sub-type of ${type.java.name}")
                 null
