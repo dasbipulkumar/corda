@@ -30,6 +30,7 @@ import net.corda.flows.CashExitFlow
 import net.corda.flows.CashIssueFlow
 import net.corda.flows.CashPaymentFlow
 import net.corda.flows.IssuerFlow
+import net.corda.node.internal.classloading.AppClassLoader
 import net.corda.node.services.*
 import net.corda.node.services.api.*
 import net.corda.node.services.config.NodeConfiguration
@@ -89,8 +90,6 @@ import java.util.stream.Collectors.toList
 import kotlin.collections.ArrayList
 import kotlin.reflect.KClass
 import net.corda.core.crypto.generateKeyPair as cryptoGenerateKeyPair
-
-data class AppClassLoader(val version: Int) : ClassLoader()
 
 val appClassLoader = AppClassLoader(1)
 
@@ -470,7 +469,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         log.info("Scanning CorDapps in $paths")
 
         // This will only scan the plugin jars and nothing else
-        return if (paths.isNotEmpty()) FastClasspathScanner().overrideClasspath(paths).scan() else null
+        return if (paths.isNotEmpty()) FastClasspathScanner().addClassLoader(appClassLoader).overrideClasspath(paths).scan() else null
     }
 
     private fun <T : Any> ScanResult.getClassesWithAnnotation(type: KClass<T>, annotation: KClass<out Annotation>): List<Class<out T>> {
