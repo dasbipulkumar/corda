@@ -1,3 +1,5 @@
 package net.corda.node.internal.classloading
 
-data class AppClassLoader(val version: Int): ClassLoader()
+import java.net.URL
+
+class AppClassLoader(val version: Int, urls: Array<URL>): ParentLastClassLoader(urls)

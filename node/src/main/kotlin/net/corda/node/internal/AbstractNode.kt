@@ -91,8 +91,6 @@ import kotlin.collections.ArrayList
 import kotlin.reflect.KClass
 import net.corda.core.crypto.generateKeyPair as cryptoGenerateKeyPair
 
-val appClassLoader = AppClassLoader(1)
-
 /**
  * A base node implementation that can be customised either for production (with real implementations that do real
  * I/O), or a mock implementation suitable for unit test environments.
@@ -107,6 +105,8 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
                             val advertisedServices: Set<ServiceInfo>,
                             val platformClock: Clock,
                             @VisibleForTesting val busyNodeLatch: ReusableLatch = ReusableLatch()) : SingletonSerializeAsToken() {
+
+    lateinit var appClassLoader: AppClassLoader
 
     // TODO: Persist this, as well as whether the node is registered.
     /**
@@ -165,10 +165,6 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
     open fun start() {
         require(!started) { "Node has already been started" }
-
-        println("=============================")
-        println(appClassLoader.hashCode())
-        println("=============================")
 
         if (configuration.devMode) {
             log.warn("Corda node is running in dev mode.")
@@ -447,7 +443,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
             // them to the plugins directory for each node.
             check(configuration.devMode) { "Package scanning can only occur in dev mode" }
             val resource = scanPackage.replace('.', '/')
-            appClassLoader.getResources(resource)
+            javaClass.classLoader.getResources(resource)
                     .asSequence()
                     .map {
                         val uri = if (it.protocol == "jar") {
@@ -467,6 +463,12 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         }
 
         log.info("Scanning CorDapps in $paths")
+
+        appClassLoader = AppClassLoader(1, paths.map { it.toUri().toURL() }.toTypedArray())
+
+        println("=============================")
+        println(appClassLoader.hashCode())
+        println("=============================")
 
         // This will only scan the plugin jars and nothing else
         return if (paths.isNotEmpty()) FastClasspathScanner().addClassLoader(appClassLoader).overrideClasspath(paths).scan() else null
