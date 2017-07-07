@@ -30,7 +30,8 @@ import net.corda.flows.CashExitFlow
 import net.corda.flows.CashIssueFlow
 import net.corda.flows.CashPaymentFlow
 import net.corda.flows.IssuerFlow
-import net.corda.node.internal.classloading.AppClassLoader
+import net.corda.node.internal.classloading.CordappLoader
+import net.corda.node.internal.classloading.requireAnnotation
 import net.corda.node.services.*
 import net.corda.node.services.api.*
 import net.corda.node.services.config.NodeConfiguration
@@ -105,8 +106,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
                             val advertisedServices: Set<ServiceInfo>,
                             val platformClock: Clock,
                             @VisibleForTesting val busyNodeLatch: ReusableLatch = ReusableLatch()) : SingletonSerializeAsToken() {
-
-    lateinit var appClassLoader: AppClassLoader
+    private val cordappLoader = CordappLoader(configuration.baseDirectory, configuration.devMode)
 
     // TODO: Persist this, as well as whether the node is registered.
     /**
@@ -204,12 +204,9 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
             startMessagingService(rpcOps)
             installCoreFlows()
 
-            val scanResult = scanCordapps()
-            if (scanResult != null) {
-                installCordaServices(scanResult)
-                registerInitiatedFlows(scanResult)
-                findRPCFlows(scanResult)
-            }
+            installCordaServices()
+            registerInitiatedFlows()
+            _services.rpcFlows += cordappLoader.findRPCFlows()
 
             // TODO Remove this once the cash stuff is in its own CorDapp
             registerInitiatedFlow(IssuerFlow.Issuer::class.java)
@@ -226,39 +223,19 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
     private class ServiceInstantiationException(cause: Throwable?) : Exception(cause)
 
-    private fun installCordaServices(scanResult: ScanResult) {
-        fun getServiceType(clazz: Class<*>): ServiceType? {
-            return try {
-                clazz.getField("type").get(null) as ServiceType
-            } catch (e: NoSuchFieldException) {
-                log.warn("${clazz.name} does not have a type field, optimistically proceeding with install.")
-                null
+    private fun installCordaServices() {
+        cordappLoader.findServices(info).forEach {
+            try {
+                installCordaService(it)
+            } catch (e: NoSuchMethodException) {
+                log.error("${it.name}, as a Corda service, must have a constructor with a single parameter " +
+                        "of type ${PluginServiceHub::class.java.name}")
+            } catch (e: ServiceInstantiationException) {
+                log.error("Corda service ${it.name} failed to instantiate", e.cause)
+            } catch (e: Exception) {
+                log.error("Unable to install Corda service ${it.name}", e)
             }
         }
-
-        scanResult.getClassesWithAnnotation(SerializeAsToken::class, CordaService::class)
-                .filter {
-                    val serviceType = getServiceType(it)
-                    if (serviceType != null && info.serviceIdentities(serviceType).isEmpty()) {
-                        log.debug { "Ignoring ${it.name} as a Corda service since $serviceType is not one of our " +
-                                "advertised services" }
-                        false
-                    } else {
-                        true
-                    }
-                }
-                .forEach {
-                    try {
-                        installCordaService(it)
-                    } catch (e: NoSuchMethodException) {
-                        log.error("${it.name}, as a Corda service, must have a constructor with a single parameter " +
-                                "of type ${PluginServiceHub::class.java.name}")
-                    } catch (e: ServiceInstantiationException) {
-                        log.error("Corda service ${it.name} failed to instantiate", e.cause)
-                    } catch (e: Exception) {
-                        log.error("Unable to install Corda service ${it.name}", e)
-                    }
-                }
     }
 
     /**
@@ -288,24 +265,8 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         installCoreFlow(NotaryFlow.Client::class, { party: Party, version: Int -> service.createServiceFlow(party, version) })
     }
 
-    private inline fun <reified A : Annotation> Class<*>.requireAnnotation(): A {
-        return requireNotNull(getDeclaredAnnotation(A::class.java)) { "$name needs to be annotated with ${A::class.java.name}" }
-    }
-
-    private fun registerInitiatedFlows(scanResult: ScanResult) {
-        scanResult
-                .getClassesWithAnnotation(FlowLogic::class, InitiatedBy::class)
-                // First group by the initiating flow class in case there are multiple mappings
-                .groupBy { it.requireAnnotation<InitiatedBy>().value.java }
-                .map { (initiatingFlow, initiatedFlows) ->
-                    val sorted = initiatedFlows.sortedWith(FlowTypeHierarchyComparator(initiatingFlow))
-                    if (sorted.size > 1) {
-                        log.warn("${initiatingFlow.name} has been specified as the inititating flow by multiple flows " +
-                                "in the same type hierarchy: ${sorted.joinToString { it.name }}. Choosing the most " +
-                                "specific sub-type for registration: ${sorted[0].name}.")
-                    }
-                    sorted[0]
-                }
+    private fun registerInitiatedFlows() {
+        cordappLoader.findInitiatedFlows()
                 .forEach {
                     try {
                         println("384: ${it.classLoader}")
@@ -319,21 +280,6 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
                 }
     }
 
-    private class FlowTypeHierarchyComparator(val initiatingFlow: Class<out FlowLogic<*>>) : Comparator<Class<out FlowLogic<*>>> {
-        override fun compare(o1: Class<out FlowLogic<*>>, o2: Class<out FlowLogic<*>>): Int {
-            return if (o1 == o2) {
-                0
-            } else if (o1.isAssignableFrom(o2)) {
-                1
-            } else if (o2.isAssignableFrom(o1)) {
-                -1
-            } else {
-                throw IllegalArgumentException("${initiatingFlow.name} has been specified as the initiating flow by " +
-                        "both ${o1.name} and ${o2.name}")
-            }
-        }
-    }
-
     /**
      * Use this method to register your initiated flows in your tests. This is automatically done by the node when it
      * starts up for all [FlowLogic] classes it finds which are annotated with [InitiatedBy].
@@ -345,7 +291,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
     private fun <F : FlowLogic<*>> registerInitiatedFlowInternal(initiatedFlow: Class<F>, track: Boolean): Observable<F> {
         val ctor = initiatedFlow.getDeclaredConstructor(Party::class.java).apply { isAccessible = true }
-        assert(ctor.javaClass.classLoader == appClassLoader)
+        assert(ctor.javaClass.classLoader == cordappLoader.appClassLoader)
         println("CTOR CLASSLOADER: ${initiatedFlow.classLoader}")
         val initiatingFlow = initiatedFlow.requireAnnotation<InitiatedBy>().value.java
         val (version, classWithAnnotation) = initiatingFlow.flowVersionAndInitiatingClass
@@ -354,8 +300,8 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         }
         val flowFactory = InitiatedFlowFactory.CorDapp(version, {
             val out = ctor.newInstance(it)
-            println("${out.javaClass.classLoader} == ${appClassLoader}")
-            assert(out.javaClass.classLoader == appClassLoader)
+            println("${out.javaClass.classLoader} == ${cordappLoader.appClassLoader}")
+            assert(out.javaClass.classLoader == cordappLoader.appClassLoader)
             out
         })
         val observable = internalRegisterFlowFactory(initiatingFlow, flowFactory, initiatedFlow, track)
@@ -375,23 +321,6 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         }
         flowFactories[initiatingFlowClass] = flowFactory
         return observable
-    }
-
-    private fun findRPCFlows(scanResult: ScanResult) {
-        fun Class<out FlowLogic<*>>.isUserInvokable(): Boolean {
-            return isPublic(modifiers) && !isLocalClass && !isAnonymousClass && (!isMemberClass || isStatic(modifiers))
-        }
-
-        _services.rpcFlows += scanResult
-                .getClassesWithAnnotation(FlowLogic::class, StartableByRPC::class)
-                .filter { it.isUserInvokable() } +
-                    // Add any core flows here
-                    listOf(
-                            ContractUpgradeFlow::class.java,
-                            // TODO Remove all Cash flows from default list once they are split into separate CorDapp.
-                            CashIssueFlow::class.java,
-                            CashExitFlow::class.java,
-                            CashPaymentFlow::class.java)
     }
 
     /**
@@ -434,71 +363,6 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     }
 
     protected open fun makeTransactionStorage(): WritableTransactionStorage = DBTransactionStorage()
-
-    private fun  scanCordapps(): ScanResult? {
-        val scanPackage = System.getProperty("net.corda.node.cordapp.scan.package")
-        val paths = if (scanPackage != null) {
-            // Rather than looking in the plugins directory, figure out the classpath for the given package and scan that
-            // instead. This is used in tests where we avoid having to package stuff up in jars and then having to move
-            // them to the plugins directory for each node.
-            check(configuration.devMode) { "Package scanning can only occur in dev mode" }
-            val resource = scanPackage.replace('.', '/')
-            javaClass.classLoader.getResources(resource)
-                    .asSequence()
-                    .map {
-                        val uri = if (it.protocol == "jar") {
-                            (it.openConnection() as JarURLConnection).jarFileURL.toURI()
-                        } else {
-                            URI(it.toExternalForm().removeSuffix(resource))
-                        }
-                        Paths.get(uri)
-                    }
-                    .toList()
-        } else {
-            val pluginsDir = configuration.baseDirectory / "plugins"
-            if (!pluginsDir.exists()) return null
-            pluginsDir.list {
-                it.filter { it.isRegularFile() && it.toString().endsWith(".jar") }.collect(toList())
-            }
-        }
-
-        log.info("Scanning CorDapps in $paths")
-
-        appClassLoader = AppClassLoader(1, paths.map { it.toUri().toURL() }.toTypedArray())
-
-        println("=============================")
-        println(appClassLoader.hashCode())
-        println("=============================")
-
-        // This will only scan the plugin jars and nothing else
-        return if (paths.isNotEmpty()) FastClasspathScanner().addClassLoader(appClassLoader).overrideClasspath(paths).scan() else null
-    }
-
-    private fun <T : Any> ScanResult.getClassesWithAnnotation(type: KClass<T>, annotation: KClass<out Annotation>): List<Class<out T>> {
-        fun loadClass(className: String): Class<out T>? {
-            return try {
-                val out = appClassLoader.loadClass(className) as Class<T>
-                assert(out.classLoader is AppClassLoader)
-                if(out.classLoader is AppClassLoader) {
-                    println("YES IT IS")
-                } else {
-                    println("NO IT ISNT")
-                }
-                println("OUT: ${out.classLoader}")
-                out
-            } catch (e: ClassCastException) {
-                log.warn("As $className is annotated with ${annotation.qualifiedName} it must be a sub-type of ${type.java.name}")
-                null
-            } catch (e: Exception) {
-                log.warn("Unable to load class $className", e)
-                null
-            }
-        }
-
-        return getNamesOfClassesWithAnnotation(annotation.java)
-                .mapNotNull { loadClass(it) }
-                .filterNot { isAbstract(it.modifiers) }
-    }
 
     private fun makeVaultObservers() {
         VaultSoftLockManager(services.vaultService, smm)
