@@ -106,6 +106,7 @@ class CordappLoader(private val baseDir: Path, private val devMode: Boolean) {
             javaClass.classLoader.getResources(resource)
                     .asSequence()
                     .map {
+                        println(it)
                         val uri = if (it.protocol == "jar") {
                             (it.openConnection() as JarURLConnection).jarFileURL.toURI()
                         } else {
