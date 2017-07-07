@@ -7,6 +7,7 @@ import org.junit.After
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
+import java.net.URLClassLoader
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -20,21 +21,24 @@ class LoaderTestFlow : FlowLogic<Unit>() {
 }
 
 class CordappLoaderTest {
-    val loader = CordappLoader(Paths.get("."), true)
-
-    @Before
-    fun setup() {
-        System.setProperty("net.corda.node.cordapp.scan.package", ".")
-    }
-
     @After
-    fun teardown() {
-        System.setProperty("net.corda.node.cordapp.scan.package", null)
+    fun cleanup() {
+        System.clearProperty("net.corda.node.cordapp.scan.package")
     }
 
     @Test
-    fun `test that the classloader loads annotated classes`() {
+    fun `test that classes that aren't in cordapps aren't loaded`() {
+        // Basedir will not be a corda node directory so the dummy flow shouldn't be recognised as a part of a cordapp
+        val loader = CordappLoader(Paths.get("."), true)
+        Assert.assertNull(loader.findInitiatedFlows().find { it == LoaderTestFlow::class })
+    }
+
+    @Test
+    fun `test that classes that are in a cordapp are loaded`() {
+        System.setProperty("net.corda.node.cordapp.scan.package", "net.corda.node.classloading")
+        val loader = CordappLoader(Paths.get("build/classes"), true)
         Assert.assertNotNull(loader.findInitiatedFlows().find { it == LoaderTestFlow::class })
+
     }
 
 }
