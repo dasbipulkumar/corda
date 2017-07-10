@@ -29,18 +29,15 @@ class CordappLoaderTest {
     @Test
     fun `test that classes that aren't in cordapps aren't loaded`() {
         // Basedir will not be a corda node directory so the dummy flow shouldn't be recognised as a part of a cordapp
-        val loader = CordappLoader(Paths.get("."), true)
+        val loader = CordappLoader.createDefault(Paths.get("."))
         Assert.assertNull(loader.findInitiatedFlows().find { it == LoaderTestFlow::class })
     }
 
     @Test
     fun `test that classes that are in a cordapp are loaded`() {
-        System.setProperty("net.corda.node.cordapp.scan.package", "net.corda.node.classloading")
-        val loader = CordappLoader(Paths.get("build/classes"), true)
+        val loader = CordappLoader.createDevMode("net.corda.node.classloading")
         val initiatedFlows = loader.findInitiatedFlows()
         val expectedClass = loader.appClassLoader.loadClass("net.corda.node.classloading.LoaderTestFlow")
         Assert.assertNotNull(initiatedFlows.find { it == expectedClass })
-
     }
-
 }

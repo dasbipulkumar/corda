@@ -106,7 +106,12 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
                             val advertisedServices: Set<ServiceInfo>,
                             val platformClock: Clock,
                             @VisibleForTesting val busyNodeLatch: ReusableLatch = ReusableLatch()) : SingletonSerializeAsToken() {
-    private val cordappLoader = CordappLoader(configuration.baseDirectory, configuration.devMode)
+    private val cordappLoader: CordappLoader = if(System.getProperty("net.corda.node.cordapp.scan.package") != null) {
+        check(configuration.devMode) { "Package scanning can only occur in dev mode" }
+        CordappLoader.createDevMode(System.getProperty("net.corda.node.cordapp.scan.package"))
+    } else {
+        CordappLoader.createDefault(configuration.baseDirectory)
+    }
 
     // TODO: Persist this, as well as whether the node is registered.
     /**

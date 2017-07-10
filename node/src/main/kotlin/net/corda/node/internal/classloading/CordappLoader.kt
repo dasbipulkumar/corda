@@ -2,14 +2,13 @@ package net.corda.node.internal.classloading
 
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner
 import io.github.lukehutch.fastclasspathscanner.scanner.ScanResult
-import net.corda.core.flows.ContractUpgradeFlow
+import net.corda.core.div
+import net.corda.core.exists
 import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.InitiatedBy
 import net.corda.core.flows.StartableByRPC
-import net.corda.core.internal.div
-import net.corda.core.internal.exists
-import net.corda.core.internal.isRegularFile
-import net.corda.core.internal.list
+import net.corda.core.isRegularFile
+import net.corda.core.list
 import net.corda.core.node.NodeInfo
 import net.corda.core.node.services.CordaService
 import net.corda.core.node.services.ServiceType
@@ -19,6 +18,8 @@ import net.corda.core.utilities.loggerFor
 import net.corda.flows.CashExitFlow
 import net.corda.flows.CashIssueFlow
 import net.corda.flows.CashPaymentFlow
+import net.corda.flows.ContractUpgradeFlow
+import net.corda.node.services.config.NodeConfiguration
 import java.lang.reflect.Modifier
 import java.net.JarURLConnection
 import java.net.URI
@@ -31,12 +32,45 @@ import kotlin.reflect.KClass
 /**
  * Handles Cordapp loading and classpath scanning
  */
-class CordappLoader(private val baseDir: Path, private val devMode: Boolean) {
-    lateinit var appClassLoader: AppClassLoader
+class CordappLoader private constructor (val cordappClassPath: List<Path>) {
+    val appClassLoader: AppClassLoader = AppClassLoader(1, cordappClassPath.map { it.toUri().toURL() }.toTypedArray())
     val scanResult = scanCordapps()
 
-    private companion object {
-        val logger = loggerFor<CordappLoader>()
+    init {
+        println("=============================")
+        println(appClassLoader.hashCode())
+        println("=============================")
+    }
+
+    companion object {
+        private val logger = loggerFor<CordappLoader>()
+
+        fun createDefault(baseDir: Path): CordappLoader{
+            val pluginsDir = baseDir / "plugins"
+            return CordappLoader(if (!pluginsDir.exists()) emptyList<Path>() else pluginsDir.list {
+                it.filter { it.isRegularFile() && it.toString().endsWith(".jar") }.collect(Collectors.toList())
+            })
+        }
+
+        // Rather than looking in the plugins directory, figure out the classpath for the given package and scan that
+        // instead. This is used in tests where we avoid having to package stuff up in jars and then having to move
+        // them to the plugins directory for each node.
+        fun createDevMode(scanPackage: String): CordappLoader {
+            val resource = scanPackage.replace('.', '/')
+            val paths = javaClass.classLoader.getResources(resource)
+                    .asSequence()
+                    .map {
+                        println(it)
+                        val uri = if (it.protocol == "jar") {
+                            (it.openConnection() as JarURLConnection).jarFileURL.toURI()
+                        } else {
+                            URI(it.toExternalForm().removeSuffix(resource))
+                        }
+                        Paths.get(uri)
+                    }
+                    .toList()
+            return CordappLoader(paths)
+        }
     }
 
     fun findServices(info: NodeInfo): List<Class<out SerializeAsToken>> {
@@ -96,43 +130,11 @@ class CordappLoader(private val baseDir: Path, private val devMode: Boolean) {
     }
 
     private fun scanCordapps(): ScanResult? {
-        val scanPackage = System.getProperty("net.corda.node.cordapp.scan.package")
-        val paths = if (scanPackage != null) {
-            // Rather than looking in the plugins directory, figure out the classpath for the given package and scan that
-            // instead. This is used in tests where we avoid having to package stuff up in jars and then having to move
-            // them to the plugins directory for each node.
-            check(devMode) { "Package scanning can only occur in dev mode" }
-            val resource = scanPackage.replace('.', '/')
-            javaClass.classLoader.getResources(resource)
-                    .asSequence()
-                    .map {
-                        println(it)
-                        val uri = if (it.protocol == "jar") {
-                            (it.openConnection() as JarURLConnection).jarFileURL.toURI()
-                        } else {
-                            URI(it.toExternalForm().removeSuffix(resource))
-                        }
-                        Paths.get(uri)
-                    }
-                    .toList()
-        } else {
-            val pluginsDir = baseDir / "plugins"
-            if (!pluginsDir.exists()) return null
-            pluginsDir.list {
-                it.filter { it.isRegularFile() && it.toString().endsWith(".jar") }.collect(Collectors.toList())
-            }
-        }
-
-        logger.info("Scanning CorDapps in $paths")
-
-        appClassLoader = AppClassLoader(1, paths.map { it.toUri().toURL() }.toTypedArray())
-
-        println("=============================")
-        println(appClassLoader.hashCode())
-        println("=============================")
-
-        // This will only scan the plugin jars and nothing else
-        return if (paths.isNotEmpty()) FastClasspathScanner().addClassLoader(appClassLoader).overrideClasspath(paths).scan() else null
+        logger.info("Scanning CorDapps in $cordappClassPath")
+        return if (cordappClassPath.isNotEmpty())
+            FastClasspathScanner().addClassLoader(appClassLoader).overrideClasspath(cordappClassPath).scan()
+        else
+            null
     }
 
     private class FlowTypeHierarchyComparator(val initiatingFlow: Class<out FlowLogic<*>>) : Comparator<Class<out FlowLogic<*>>> {
