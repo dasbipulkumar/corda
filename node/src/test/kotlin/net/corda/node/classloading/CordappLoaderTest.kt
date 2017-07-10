@@ -21,11 +21,6 @@ class LoaderTestFlow : FlowLogic<Unit>() {
 }
 
 class CordappLoaderTest {
-    @After
-    fun cleanup() {
-        System.clearProperty("net.corda.node.cordapp.scan.package")
-    }
-
     @Test
     fun `test that classes that aren't in cordapps aren't loaded`() {
         // Basedir will not be a corda node directory so the dummy flow shouldn't be recognised as a part of a cordapp
