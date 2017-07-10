@@ -7,7 +7,7 @@ open class ParentLastClassLoader(urls: Array<URL>) : URLClassLoader(urls) {
     @Synchronized
     override fun loadClass(className: String, resolve: Boolean): Class<*> {
         return try {
-            super.findClass(className)
+            findLoadedClass(className) ?: super.findClass(className)
         } catch (e: ClassNotFoundException) {
             super.loadClass(className, resolve)
         }

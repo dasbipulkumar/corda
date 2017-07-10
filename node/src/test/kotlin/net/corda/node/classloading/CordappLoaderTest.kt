@@ -37,7 +37,9 @@ class CordappLoaderTest {
     fun `test that classes that are in a cordapp are loaded`() {
         System.setProperty("net.corda.node.cordapp.scan.package", "net.corda.node.classloading")
         val loader = CordappLoader(Paths.get("build/classes"), true)
-        Assert.assertNotNull(loader.findInitiatedFlows().find { it == LoaderTestFlow::class })
+        val initiatedFlows = loader.findInitiatedFlows()
+        val expectedClass = loader.appClassLoader.loadClass("net.corda.node.classloading.LoaderTestFlow")
+        Assert.assertNotNull(initiatedFlows.find { it == expectedClass })
 
     }
 

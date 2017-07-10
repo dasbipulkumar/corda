@@ -38,4 +38,12 @@ class ParentLastClassLoaderTest {
 
         Assert.assertEquals(expectedLoader, actualLoader)
     }
+
+    @Test
+    fun `double loading a class should use a cached version`() {
+        val first = loader.loadClass("net.corda.node.internal.Node")
+        val second = loader.loadClass("net.corda.node.internal.Node")
+
+        Assert.assertEquals(first, second)
+    }
 }
