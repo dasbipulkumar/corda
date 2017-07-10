@@ -36,12 +36,6 @@ class CordappLoader private constructor (val cordappClassPath: List<Path>) {
     val appClassLoader: AppClassLoader = AppClassLoader(1, cordappClassPath.map { it.toUri().toURL() }.toTypedArray())
     val scanResult = scanCordapps()
 
-    init {
-        println("=============================")
-        println(appClassLoader.hashCode())
-        println("=============================")
-    }
-
     companion object {
         private val logger = loggerFor<CordappLoader>()
 

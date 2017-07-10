@@ -106,13 +106,6 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
                             val advertisedServices: Set<ServiceInfo>,
                             val platformClock: Clock,
                             @VisibleForTesting val busyNodeLatch: ReusableLatch = ReusableLatch()) : SingletonSerializeAsToken() {
-    val cordappLoader: CordappLoader = if(System.getProperty("net.corda.node.cordapp.scan.package") != null) {
-        check(configuration.devMode) { "Package scanning can only occur in dev mode" }
-        CordappLoader.createDevMode(System.getProperty("net.corda.node.cordapp.scan.package"))
-    } else {
-        CordappLoader.createDefault(configuration.baseDirectory)
-    }
-
     // TODO: Persist this, as well as whether the node is registered.
     /**
      * Sequence number of changes sent to the network map service, when registering/de-registering this node.
@@ -155,6 +148,13 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     /** Fetch CordaPluginRegistry classes registered in META-INF/services/net.corda.core.node.CordaPluginRegistry files that exist in the classpath */
     open val pluginRegistries: List<CordaPluginRegistry> by lazy {
         ServiceLoader.load(CordaPluginRegistry::class.java).toList()
+    }
+
+    val cordappLoader: CordappLoader = if(System.getProperty("net.corda.node.cordapp.scan.package") != null) {
+        check(configuration.devMode) { "Package scanning can only occur in dev mode" }
+        CordappLoader.createDevMode(System.getProperty("net.corda.node.cordapp.scan.package"))
+    } else {
+        CordappLoader.createDefault(configuration.baseDirectory)
     }
 
     /** Set to true once [start] has been successfully called. */
@@ -297,7 +297,8 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     private fun <F : FlowLogic<*>> registerInitiatedFlowInternal(initiatedFlow: Class<F>, track: Boolean): Observable<F> {
         val ctor = initiatedFlow.getDeclaredConstructor(Party::class.java).apply { isAccessible = true }
         println("CTOR CLASSLOADER: ${initiatedFlow.classLoader}")
-        assert(ctor.javaClass.classLoader == cordappLoader.appClassLoader)
+        println("CLASSLOADER: ${cordappLoader.appClassLoader}")
+        assert(initiatedFlow.classLoader == cordappLoader.appClassLoader)
         val initiatingFlow = initiatedFlow.requireAnnotation<InitiatedBy>().value.java
         val (version, classWithAnnotation) = initiatingFlow.flowVersionAndInitiatingClass
         require(classWithAnnotation == initiatingFlow) {
