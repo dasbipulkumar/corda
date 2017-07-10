@@ -155,15 +155,7 @@ class CordappLoader private constructor (val cordappClassPath: List<Path>) {
     private fun <T : Any> ScanResult.getClassesWithAnnotation(type: KClass<T>, annotation: KClass<out Annotation>): List<Class<out T>> {
         fun loadClass(className: String): Class<out T>? {
             return try {
-                val out = appClassLoader.loadClass(className) as Class<T>
-                assert(out.classLoader is AppClassLoader)
-                if (out.classLoader is AppClassLoader) {
-                    println("YES IT IS")
-                } else {
-                    println("NO IT ISNT")
-                }
-                println("OUT: ${out.classLoader}")
-                out
+                appClassLoader.loadClass(className) as Class<T>
             } catch (e: ClassCastException) {
                 logger.warn("As $className is annotated with ${annotation.qualifiedName} it must be a sub-type of ${type.java.name}")
                 null
