@@ -26,7 +26,6 @@ data class FlowLogicRefImpl internal constructor(val flowLogicClassName: String,
  * whitelists.
  *
  * TODO: Align with API related logic for passing in FlowLogic references (FlowRef)
- * TODO: Actual support for AppContext / AttachmentsClassLoader
  * TODO: at some point check whether there is permission, beyond the annotations, to start flows. For example, as a security
  * measure we might want the ability for the node admin to blacklist a flow such that it moves immediately to the "Flow Hospital"
  * in response to a potential malicious use or buggy update to an app etc.
@@ -40,6 +39,7 @@ object FlowLogicRefFactoryImpl : SingletonSerializeAsToken(), FlowLogicRefFactor
     }
 
     fun createForRPC(flowClass: Class<out FlowLogic<*>>, vararg args: Any?): FlowLogicRef {
+        println("FLOW CLASS CLASSLOADER: ${flowClass.classLoader}")
         // TODO: This is used via RPC but it's probably better if we pass in argument names and values explicitly
         // to avoid requiring only a single constructor.
         val argTypes = args.map { it?.javaClass }
@@ -83,6 +83,7 @@ object FlowLogicRefFactoryImpl : SingletonSerializeAsToken(), FlowLogicRefFactor
 
     fun toFlowLogic(ref: FlowLogicRef): FlowLogic<*> {
         if (ref !is FlowLogicRefImpl) throw IllegalFlowLogicException(ref.javaClass, "FlowLogicRef was not created via correct FlowLogicRefFactory interface")
+        // TODO: CLINT: Use the AppClassLoader
         val klass = Class.forName(ref.flowLogicClassName, true, ref.appContext.classLoader).asSubclass(FlowLogic::class.java)
         return createConstructor(klass, ref.args)()
     }

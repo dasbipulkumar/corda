@@ -304,12 +304,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         require(classWithAnnotation == initiatingFlow) {
             "${InitiatingFlow::class.java.name} must be annotated on ${initiatingFlow.name} and not on a super-type"
         }
-        val flowFactory = InitiatedFlowFactory.CorDapp(version, {
-            val out = ctor.newInstance(it)
-            println("${out.javaClass.classLoader} == ${cordappLoader.appClassLoader}")
-            assert(out.javaClass.classLoader == cordappLoader.appClassLoader)
-            out
-        })
+        val flowFactory = InitiatedFlowFactory.CorDapp(version, { ctor.newInstance(it) })
         val observable = internalRegisterFlowFactory(initiatingFlow, flowFactory, initiatedFlow, track)
         log.info("Registered ${initiatingFlow.name} to initiate ${initiatedFlow.name} (version $version)")
         return observable
