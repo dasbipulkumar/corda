@@ -39,7 +39,6 @@ object FlowLogicRefFactoryImpl : SingletonSerializeAsToken(), FlowLogicRefFactor
     }
 
     fun createForRPC(flowClass: Class<out FlowLogic<*>>, vararg args: Any?): FlowLogicRef {
-        println("FLOW CLASS CLASSLOADER: ${flowClass.classLoader}")
         // TODO: This is used via RPC but it's probably better if we pass in argument names and values explicitly
         // to avoid requiring only a single constructor.
         val argTypes = args.map { it?.javaClass }
@@ -73,9 +72,7 @@ object FlowLogicRefFactoryImpl : SingletonSerializeAsToken(), FlowLogicRefFactor
      */
     @VisibleForTesting
     internal fun createKotlin(type: Class<out FlowLogic<*>>, args: Map<String, Any?>): FlowLogicRef {
-        // TODO: we need to capture something about the class loader or "application context" into the ref,
-        //       perhaps as some sort of ThreadLocal style object.  For now, just create an empty one.
-        val appContext = AppContext(emptyList())
+        val appContext = AppContext(emptyList(), type.classLoader)
         // Check we can find a constructor and populate the args to it, but don't call it
         createConstructor(type, args)
         return FlowLogicRefImpl(type.name, appContext, args)
@@ -83,7 +80,6 @@ object FlowLogicRefFactoryImpl : SingletonSerializeAsToken(), FlowLogicRefFactor
 
     fun toFlowLogic(ref: FlowLogicRef): FlowLogic<*> {
         if (ref !is FlowLogicRefImpl) throw IllegalFlowLogicException(ref.javaClass, "FlowLogicRef was not created via correct FlowLogicRefFactory interface")
-        // TODO: CLINT: Use the AppClassLoader
         val klass = Class.forName(ref.flowLogicClassName, true, ref.appContext.classLoader).asSubclass(FlowLogic::class.java)
         return createConstructor(klass, ref.args)()
     }

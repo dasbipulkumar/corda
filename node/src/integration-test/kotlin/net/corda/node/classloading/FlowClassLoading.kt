@@ -1,9 +1,6 @@
 package net.corda.node.classloading
 
-import net.corda.core.flows.FlowLogic
-import net.corda.core.flows.InitiatedBy
-import net.corda.core.flows.InitiatingFlow
-import net.corda.core.flows.StartableByRPC
+import net.corda.core.flows.*
 import net.corda.core.getOrThrow
 import net.corda.core.identity.Party
 import net.corda.core.serialization.CordaSerializable
@@ -16,15 +13,16 @@ import net.corda.testing.node.MockNetwork.MockNode
 import net.corda.testing.node.InMemoryMessagingNetwork.ServicePeerAllocationStrategy.RoundRobin
 import org.junit.Assert
 import org.junit.Test
+import java.lang.reflect.Constructor
 
 class FlowClassLoading {
     private val mockNet = MockNetwork(servicePeerAllocationStrategy = RoundRobin())
 
     @CordaSerializable
-    private data class Data(val value: Int)
+    internal data class Data(val value: Int)
 
     @InitiatingFlow
-    private class Initiator(private val otherSide: Party) : FlowLogic<Data>() {
+    internal class Initiator(private val otherSide: Party) : FlowLogic<Data>() {
         override fun call(): Data {
             //Assert.assertEquals(loader.appClassLoader, javaClass.classLoader)
             send(otherSide, Data(0))
@@ -59,8 +57,8 @@ class FlowClassLoading {
         val (nodeA, nodeB) = createTwoMappedNodes()
         val expected = nodeA.cordappLoader.appClassLoader
 
-        val flow = Initiator(nodeB.info.legalIdentity)
-        val resultFuture = nodeA.services.startFlow(flow).resultFuture
+        val flowClass = expected.loadClass(Initiator::class.java.name) as Class<Initiator>
+        val resultFuture = nodeA.services.invokeFlowAsync(flowClass, FlowInitiator.RPC("TEST"), nodeB.info.legalIdentity).resultFuture
         mockNet.runNetwork()
         val data = resultFuture.getOrThrow()
 
