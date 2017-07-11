@@ -2,13 +2,14 @@ package net.corda.node.internal.classloading
 
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner
 import io.github.lukehutch.fastclasspathscanner.scanner.ScanResult
-import net.corda.core.div
-import net.corda.core.exists
+import net.corda.core.flows.ContractUpgradeFlow
 import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.InitiatedBy
 import net.corda.core.flows.StartableByRPC
-import net.corda.core.isRegularFile
-import net.corda.core.list
+import net.corda.core.internal.div
+import net.corda.core.internal.exists
+import net.corda.core.internal.isRegularFile
+import net.corda.core.internal.list
 import net.corda.core.node.NodeInfo
 import net.corda.core.node.services.CordaService
 import net.corda.core.node.services.ServiceType
@@ -18,8 +19,6 @@ import net.corda.core.utilities.loggerFor
 import net.corda.flows.CashExitFlow
 import net.corda.flows.CashIssueFlow
 import net.corda.flows.CashPaymentFlow
-import net.corda.flows.ContractUpgradeFlow
-import net.corda.node.services.config.NodeConfiguration
 import java.lang.reflect.Modifier
 import java.net.JarURLConnection
 import java.net.URI
@@ -32,14 +31,14 @@ import kotlin.reflect.KClass
 /**
  * Handles Cordapp loading and classpath scanning
  */
-class CordappLoader private constructor (val cordappClassPath: List<Path>) {
+class CordappLoader private constructor(val cordappClassPath: List<Path>) {
     val appClassLoader: AppClassLoader = AppClassLoader(1, cordappClassPath.map { it.toUri().toURL() }.toTypedArray())
     val scanResult = scanCordapps()
 
     companion object {
         private val logger = loggerFor<CordappLoader>()
 
-        fun createDefault(baseDir: Path): CordappLoader{
+        fun createDefault(baseDir: Path): CordappLoader {
             val pluginsDir = baseDir / "plugins"
             return CordappLoader(if (!pluginsDir.exists()) emptyList<Path>() else pluginsDir.list {
                 it.filter { it.isRegularFile() && it.toString().endsWith(".jar") }.collect(Collectors.toList())

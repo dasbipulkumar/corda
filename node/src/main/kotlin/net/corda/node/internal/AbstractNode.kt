@@ -210,7 +210,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
             installCoreFlows()
 
             installCordaServices()
-            registerInitiatedFlows()
+            registerCordappFlows()
             _services.rpcFlows += cordappLoader.findRPCFlows()
 
             // TODO Remove this once the cash stuff is in its own CorDapp
@@ -270,11 +270,11 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         installCoreFlow(NotaryFlow.Client::class, { party: Party, version: Int -> service.createServiceFlow(party, version) })
     }
 
-    private fun registerInitiatedFlows() {
+    private fun registerCordappFlows() {
         cordappLoader.findInitiatedFlows()
                 .forEach {
                     try {
-                        println("384: ${it.classLoader}")
+                        require(it.classLoader == cordappLoader.appClassLoader)
                         registerInitiatedFlowInternal(it, track = false)
                     } catch (e: NoSuchMethodException) {
                         log.error("${it.name}, as an initiated flow, must have a constructor with a single parameter " +
