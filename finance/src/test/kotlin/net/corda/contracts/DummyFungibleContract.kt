@@ -2,16 +2,13 @@ package net.corda.contracts.asset
 
 import net.corda.core.contracts.*
 import net.corda.core.crypto.SecureHash
-import net.corda.core.crypto.newSecureRandom
 import net.corda.core.crypto.toBase58String
 import net.corda.core.identity.AbstractParty
-import net.corda.core.identity.Party
 import net.corda.core.internal.Emoji
 import net.corda.core.schemas.MappedSchema
 import net.corda.core.schemas.PersistentState
 import net.corda.core.schemas.QueryableState
 import net.corda.core.transactions.LedgerTransaction
-import net.corda.core.transactions.TransactionBuilder
 import net.corda.schemas.SampleCashSchemaV1
 import net.corda.schemas.SampleCashSchemaV2
 import net.corda.schemas.SampleCashSchemaV3
@@ -81,22 +78,15 @@ class DummyFungibleContract : OnLedgerAsset<Currency, DummyFungibleContract.Comm
 
         data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
 
-        data class Issue(override val nonce: Long = newSecureRandom().nextLong()) : FungibleAsset.Commands.Issue, Commands
+        class Issue : TypeOnlyCommandData(), Commands
 
-        data class Exit(override val amount: Amount<Issued<Currency>>) : Commands, FungibleAsset.Commands.Exit<Currency>
+        data class Exit(override val amount: Amount<Issued<Currency>>) : FungibleAsset.Commands.Exit<Currency>, Commands
     }
-
-    fun generateIssue(tx: TransactionBuilder, tokenDef: Issued<Currency>, pennies: Long, owner: AbstractParty, notary: Party)
-            = generateIssue(tx, Amount(pennies, tokenDef), owner, notary)
-
-    fun generateIssue(tx: TransactionBuilder, amount: Amount<Issued<Currency>>, owner: AbstractParty, notary: Party)
-        = generateIssue(tx, TransactionState(State(amount, owner), notary), generateIssueCommand())
 
     override fun deriveState(txState: TransactionState<State>, amount: Amount<Issued<Currency>>, owner: AbstractParty)
             = txState.copy(data = txState.data.copy(amount = amount, owner = owner))
 
     override fun generateExitCommand(amount: Amount<Issued<Currency>>) = Commands.Exit(amount)
-    override fun generateIssueCommand() = Commands.Issue()
     override fun generateMoveCommand() = Commands.Move()
 
     override fun verify(tx: LedgerTransaction) {

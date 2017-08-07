@@ -3,7 +3,6 @@ package net.corda.contracts.asset
 import net.corda.contracts.Commodity
 import net.corda.core.contracts.*
 import net.corda.core.crypto.SecureHash
-import net.corda.core.crypto.newSecureRandom
 import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.Party
 import net.corda.core.serialization.CordaSerializable
@@ -78,10 +77,9 @@ class CommodityContract : OnLedgerAsset<Commodity, CommodityContract.Commands, C
         data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
 
         /**
-         * Allows new commodity states to be issued into existence: the nonce ("number used once") ensures the transaction
-         * has a unique ID even when there are no inputs.
+         * Allows new commodity states to be issued into existence.
          */
-        data class Issue(override val nonce: Long = newSecureRandom().nextLong()) : FungibleAsset.Commands.Issue, Commands
+        class Issue : TypeOnlyCommandData(), Commands
 
         /**
          * A command stating that money has been withdrawn from the shared ledger and is now accounted for
@@ -169,14 +167,13 @@ class CommodityContract : OnLedgerAsset<Commodity, CommodityContract.Commands, C
      * Puts together an issuance transaction for the specified amount that starts out being owned by the given pubkey.
      */
     fun generateIssue(tx: TransactionBuilder, amount: Amount<Issued<Commodity>>, owner: AbstractParty, notary: Party)
-            = generateIssue(tx, TransactionState(State(amount, owner), notary), generateIssueCommand())
+            = generateIssue(tx, TransactionState(State(amount, owner), notary), Commands.Issue())
 
 
     override fun deriveState(txState: TransactionState<State>, amount: Amount<Issued<Commodity>>, owner: AbstractParty)
             = txState.copy(data = txState.data.copy(amount = amount, owner = owner))
 
     override fun generateExitCommand(amount: Amount<Issued<Commodity>>) = Commands.Exit(amount)
-    override fun generateIssueCommand() = Commands.Issue()
     override fun generateMoveCommand() = Commands.Move()
 }
 

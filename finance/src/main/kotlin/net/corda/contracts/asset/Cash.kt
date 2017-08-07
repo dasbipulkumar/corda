@@ -3,7 +3,6 @@ package net.corda.contracts.asset
 import net.corda.core.contracts.*
 import net.corda.core.crypto.SecureHash
 import net.corda.core.crypto.entropyToKeyPair
-import net.corda.core.crypto.newSecureRandom
 import net.corda.core.crypto.testing.NULL_PARTY
 import net.corda.core.crypto.toBase58String
 import net.corda.core.identity.AbstractParty
@@ -114,10 +113,9 @@ class Cash : OnLedgerAsset<Currency, Cash.Commands, Cash.State>() {
         data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
 
         /**
-         * Allows new cash states to be issued into existence: the nonce ("number used once") ensures the transaction
-         * has a unique ID even when there are no inputs.
+         * Allows new cash states to be issued into existence.
          */
-        data class Issue(override val nonce: Long = newSecureRandom().nextLong()) : FungibleAsset.Commands.Issue, Commands
+        class Issue : TypeOnlyCommandData(), Commands
 
         /**
          * A command stating that money has been withdrawn from the shared ledger and is now accounted for
@@ -136,13 +134,12 @@ class Cash : OnLedgerAsset<Currency, Cash.Commands, Cash.State>() {
      * Puts together an issuance transaction for the specified amount that starts out being owned by the given pubkey.
      */
     fun generateIssue(tx: TransactionBuilder, amount: Amount<Issued<Currency>>, owner: AbstractParty, notary: Party)
-            = generateIssue(tx, TransactionState(State(amount, owner), notary), generateIssueCommand())
+            = generateIssue(tx, TransactionState(State(amount, owner), notary), Commands.Issue())
 
     override fun deriveState(txState: TransactionState<State>, amount: Amount<Issued<Currency>>, owner: AbstractParty)
             = txState.copy(data = txState.data.copy(amount = amount, owner = owner))
 
     override fun generateExitCommand(amount: Amount<Issued<Currency>>) = Commands.Exit(amount)
-    override fun generateIssueCommand() = Commands.Issue()
     override fun generateMoveCommand() = Commands.Move()
 
     override fun verify(tx: LedgerTransaction) {

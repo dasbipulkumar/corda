@@ -9,10 +9,10 @@ import net.corda.core.identity.Party
 import net.corda.core.node.services.VaultQueryService
 import net.corda.core.node.services.VaultService
 import net.corda.core.node.services.queryBy
-import net.corda.core.utilities.OpaqueBytes
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.transactions.WireTransaction
+import net.corda.core.utilities.OpaqueBytes
 import net.corda.node.services.database.HibernateConfiguration
 import net.corda.node.services.schema.NodeSchemaService
 import net.corda.node.services.vault.HibernateVaultQueryImpl
@@ -150,10 +150,6 @@ class CashTests : TestDependencyInjectionBase() {
                         amount = 1000.DOLLARS `issued by` MINI_CORP.ref(12, 34),
                         owner = AnonymousParty(DUMMY_PUBKEY_1)
                 )
-            }
-            tweak {
-                command(MINI_CORP_PUBKEY) { Cash.Commands.Issue(0) }
-                this `fails with` "has a nonce"
             }
             command(MINI_CORP_PUBKEY) { Cash.Commands.Issue() }
             this.verifies()

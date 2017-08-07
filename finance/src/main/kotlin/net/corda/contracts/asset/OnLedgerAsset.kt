@@ -246,7 +246,6 @@ abstract class OnLedgerAsset<T : Any, C : CommandData, S : FungibleAsset<T>> : C
     }
 
     abstract fun generateExitCommand(amount: Amount<Issued<T>>): FungibleAsset.Commands.Exit<T>
-    abstract fun generateIssueCommand(): FungibleAsset.Commands.Issue
     abstract fun generateMoveCommand(): FungibleAsset.Commands.Move
 
     /**
