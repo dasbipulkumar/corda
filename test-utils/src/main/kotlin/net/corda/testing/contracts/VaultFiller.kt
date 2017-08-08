@@ -226,14 +226,14 @@ fun ServiceHub.evolveLinearStates(linearStates: List<StateAndRef<LinearState>>) 
 fun ServiceHub.evolveLinearState(linearState: StateAndRef<LinearState>) : StateAndRef<LinearState> = consumeAndProduce(linearState)
 
 @JvmOverloads
-fun ServiceHub.consumeCash(amount: Amount<Currency>, to: Party = CHARLIE): Vault.Update<ContractState> {
+fun ServiceHub.consumeCash(amount: Amount<Currency>, to: Party = CHARLIE, notary: Party = DUMMY_NOTARY, key: KeyPair = DUMMY_NOTARY_KEY): Vault.Update<ContractState> {
     val update =  vaultService.rawUpdates.toFuture()
     val services = this
 
     // A tx that spends our money.
-    val spendTX = TransactionBuilder(DUMMY_NOTARY).apply {
+    val spendTX = TransactionBuilder(notary).apply {
         Cash.generateSpend(services, this, amount, to)
-        signWith(DUMMY_NOTARY_KEY)
+        signWith(key)
     }.toSignedTransaction(checkSufficientSignatures = false)
 
     recordTransactions(spendTX)
