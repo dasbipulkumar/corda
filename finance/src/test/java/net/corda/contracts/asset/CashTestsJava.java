@@ -4,13 +4,14 @@ import kotlin.Unit;
 import net.corda.core.contracts.PartyAndReference;
 import net.corda.core.identity.AnonymousParty;
 import net.corda.core.utilities.OpaqueBytes;
+import net.corda.testing.DummyCommandData;
 import org.junit.Test;
 
 import static net.corda.core.contracts.ContractsDSL.DOLLARS;
 import static net.corda.core.contracts.ContractsDSL.issuedBy;
+import static net.corda.testing.CoreTestUtils.*;
 import static net.corda.testing.TestConstants.getDUMMY_PUBKEY_1;
 import static net.corda.testing.TestConstants.getDUMMY_PUBKEY_2;
-import static net.corda.testing.CoreTestUtils.*;
 
 /**
  * This is an incomplete Java replica of CashTests.kt to show how to use the Java test DSL
@@ -26,16 +27,17 @@ public class CashTestsJava {
         ledger(lg -> {
             lg.transaction(tx -> {
                 tx.input(inState);
-                tx.failsWith("the amounts balance");
 
                 tx.tweak(tw -> {
                     tw.output(new Cash.State(issuedBy(DOLLARS(2000), defaultIssuer), new AnonymousParty(getDUMMY_PUBKEY_2())));
+                    tw.command(getDUMMY_PUBKEY_2(), new Cash.Commands.Move());
                     return tw.failsWith("the amounts balance");
                 });
 
                 tx.tweak(tw -> {
                     tw.output(outState);
-                    // No command arguments
+                    tw.command(getDUMMY_PUBKEY_1(), DummyCommandData.INSTANCE);
+                    // Invalid command
                     return tw.failsWith("required net.corda.contracts.asset.Cash.Commands.Move command");
                 });
                 tx.tweak(tw -> {
