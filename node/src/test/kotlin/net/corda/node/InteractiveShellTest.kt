@@ -88,14 +88,6 @@ class InteractiveShellTest {
             throw UnsupportedOperationException("not implemented")
         }
 
-        override fun flowStackSnapshot(flowClass: Class<*>): FlowStackSnapshot {
-            throw UnsupportedOperationException("not implemented")
-        }
-
-        override fun persistFlowStackSnapshot(flowClass: Class<*>) {
-            throw UnsupportedOperationException("not implemented")
-        }
-
         override val serviceHub: ServiceHub
             get() = throw UnsupportedOperationException()
         override val logger: Logger
@@ -112,6 +104,14 @@ class InteractiveShellTest {
         }
 
         override fun recordAuditEvent(eventType: String, comment: String, extraAuditData: Map<String, String>) {
+            // Do nothing
+        }
+
+        override fun flowStackSnapshot(flowClass: Class<*>): FlowStackSnapshot? {
+            return null
+        }
+
+        override fun persistFlowStackSnapshot(flowClass: Class<*>) {
             // Do nothing
         }
     }
