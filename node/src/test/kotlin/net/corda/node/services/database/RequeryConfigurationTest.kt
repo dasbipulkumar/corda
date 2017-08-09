@@ -22,6 +22,7 @@ import net.corda.testing.DUMMY_NOTARY
 import net.corda.testing.DUMMY_PUBKEY_1
 import net.corda.testing.TestDependencyInjectionBase
 import net.corda.testing.contracts.DummyContract
+import net.corda.testing.dummyCommand
 import net.corda.testing.node.makeTestDataSourceProperties
 import net.corda.testing.node.makeTestDatabaseProperties
 import org.assertj.core.api.Assertions
@@ -206,7 +207,7 @@ class RequeryConfigurationTest : TestDependencyInjectionBase() {
                 inputs = listOf(StateRef(SecureHash.randomSHA256(), index)),
                 attachments = emptyList(),
                 outputs = emptyList(),
-                commands = emptyList(),
+                commands = listOf(dummyCommand()),
                 notary = DUMMY_NOTARY,
                 timeWindow = null
         )

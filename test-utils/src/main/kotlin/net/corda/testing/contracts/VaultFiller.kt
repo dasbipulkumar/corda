@@ -19,6 +19,7 @@ import net.corda.core.transactions.TransactionBuilder
 import net.corda.testing.CHARLIE
 import net.corda.testing.DUMMY_NOTARY
 import net.corda.testing.DUMMY_NOTARY_KEY
+import net.corda.testing.dummyCommand
 import java.security.KeyPair
 import java.security.PublicKey
 import java.time.Duration
@@ -36,6 +37,7 @@ fun ServiceHub.fillWithSomeTestDeals(dealIds: List<String>,
         // Issue a deal state
         val dummyIssue = TransactionBuilder(notary = DUMMY_NOTARY).apply {
             addOutputState(DummyDealContract.State(ref = it, participants = participants.plus(me)))
+            addCommand(dummyCommand())
             signWith(DUMMY_NOTARY_KEY)
         }
         return@map signInitialTransaction(dummyIssue)
@@ -72,6 +74,7 @@ fun ServiceHub.fillWithSomeTestLinearStates(numberToCreate: Int,
                     linearNumber = linearNumber,
                     linearBoolean = linearBoolean,
                     linearTimestamp = linearTimestamp))
+            addCommand(dummyCommand())
             signWith(DUMMY_NOTARY_KEY)
         }
 
@@ -186,6 +189,7 @@ fun <T : LinearState> ServiceHub.consume(states: List<StateAndRef<T>>) {
     states.forEach {
         val consumedTx = TransactionBuilder(notary = DUMMY_NOTARY).apply {
             addInputState(it)
+            addCommand(dummyCommand(DUMMY_NOTARY.owningKey))
             signWith(DUMMY_NOTARY_KEY)
         }.toSignedTransaction()
 
@@ -197,6 +201,7 @@ fun <T : LinearState> ServiceHub.consumeAndProduce(stateAndRef: StateAndRef<T>):
     // Create a txn consuming different contract types
     val consumedTx = TransactionBuilder(notary = DUMMY_NOTARY).apply {
         addInputState(stateAndRef)
+        addCommand(dummyCommand(DUMMY_NOTARY.owningKey))
         signWith(DUMMY_NOTARY_KEY)
     }.toSignedTransaction()
 
@@ -206,6 +211,7 @@ fun <T : LinearState> ServiceHub.consumeAndProduce(stateAndRef: StateAndRef<T>):
     val producedTx = TransactionBuilder(notary = DUMMY_NOTARY).apply {
         addOutputState(DummyLinearContract.State(linearId = stateAndRef.state.data.linearId,
                 participants = stateAndRef.state.data.participants))
+        addCommand(dummyCommand(DUMMY_NOTARY.owningKey))
         signWith(DUMMY_NOTARY_KEY)
     }.toSignedTransaction()
 
