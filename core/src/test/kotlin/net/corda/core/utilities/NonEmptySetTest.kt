@@ -26,8 +26,9 @@ class NonEmptySetTest {
         fun suite(): TestSuite {
             return SetTestSuiteBuilder
                     .using(NonEmptySetGenerator)
-                    .named("Guava test suite")
+                    .named("Guava")
                     .withFeatures(
+                            CollectionSize.ONE,
                             CollectionSize.SEVERAL,
                             CollectionFeature.ALLOWS_NULL_VALUES,
                             CollectionFeature.KNOWN_ORDER
@@ -44,6 +45,7 @@ class NonEmptySetTest {
 
         @Test
         fun head() {
+            assertThat(NonEmptySet.of(1).head()).isEqualTo(1)
             assertThat(NonEmptySet.of(1, 2).head()).isEqualTo(1)
         }
 
@@ -53,7 +55,6 @@ class NonEmptySetTest {
             try {
                 val original = NonEmptySet.of(-17, 22, 17)
                 val copy = original.serialize().deserialize()
-
                 assertThat(copy).isEqualTo(original).isNotSameAs(original)
             } finally {
                 resetTestSerialization()
