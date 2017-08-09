@@ -1,7 +1,6 @@
 package net.corda.node.services.keys
 
 import net.corda.core.crypto.*
-import net.corda.core.identity.AnonymousPartyAndPath
 import net.corda.core.identity.PartyAndCertificate
 import net.corda.core.internal.ThreadBox
 import net.corda.core.node.services.IdentityService
@@ -68,7 +67,7 @@ class PersistentKeyManagementService(val identityService: IdentityService,
         return keyPair.public
     }
 
-    override fun freshKeyAndCert(identity: PartyAndCertificate, revocationEnabled: Boolean): AnonymousPartyAndPath {
+    override fun freshKeyAndCert(identity: PartyAndCertificate, revocationEnabled: Boolean): PartyAndCertificate {
         return freshCertificate(identityService, freshKey(), identity, getSigner(identity.owningKey), revocationEnabled)
     }
 
