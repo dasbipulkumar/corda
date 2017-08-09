@@ -145,7 +145,6 @@ class DummyFungibleContract : OnLedgerAsset<Currency, DummyFungibleContract.Comm
         val outputAmount = outputs.sumCash()
         val cashCommands = tx.commands.select<Commands.Issue>()
         requireThat {
-            "the issue command has a nonce" using (issueCommand.value.nonce != 0L)
             // TODO: This doesn't work with the trader demo, so use the underlying key instead
             // "output states are issued by a command signer" by (issuer.party in issueCommand.signingParties)
             "output states are issued by a command signer" using (issuer.party.owningKey in issueCommand.signers)

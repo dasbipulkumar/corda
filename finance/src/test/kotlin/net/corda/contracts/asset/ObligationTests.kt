@@ -182,7 +182,7 @@ class ObligationTests {
             this `fails with` ""
         }
 
-        // Can't have any other commands if we have an issue command (because the issue command overrules them)
+        // Can't have any other commands if we have an issue command (because the issue command overrules them).
         transaction {
             input { inState }
             output { inState.copy(quantity = inState.amount.quantity * 2) }

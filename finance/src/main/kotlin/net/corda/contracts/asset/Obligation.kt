@@ -200,7 +200,7 @@ class Obligation<P : Any> : Contract {
          * should take the moved states into account when considering whether it is valid. Typically this will be
          * null.
          */
-        data class Move(override val contractHash: SecureHash? = null) : Commands, FungibleAsset.Commands.Move
+        data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
 
         /**
          * Allows new obligation states to be issued into existence.
@@ -230,7 +230,7 @@ class Obligation<P : Any> : Contract {
          * A command stating that the debt is being released by the beneficiary. Normally would indicate
          * either settlement outside of the ledger, or that the obligor is unable to pay.
          */
-        data class Exit<P : Any>(override val amount: Amount<Issued<Terms<P>>>) : Commands, FungibleAsset.Commands.Exit<Terms<P>>
+        data class Exit<P : Any>(override val amount: Amount<Issued<Terms<P>>>) : FungibleAsset.Commands.Exit<Terms<P>>, Commands
     }
 
     override fun verify(tx: LedgerTransaction) {
@@ -311,7 +311,6 @@ class Obligation<P : Any> : Contract {
         val outputAmount = outputs.sumObligations<P>()
         val issueCommands = tx.commands.select<Commands.Issue>()
         requireThat {
-            "the issue command has a nonce" using (issueCommand.value.nonce != 0L)
             "output states are issued by a command signer" using (issuer.party in issueCommand.signingParties)
             "output values sum to more than the inputs" using (outputAmount > inputAmount)
             "there is only a single issue command" using (issueCommands.count() == 1)

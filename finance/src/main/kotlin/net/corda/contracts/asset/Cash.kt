@@ -121,7 +121,7 @@ class Cash : OnLedgerAsset<Currency, Cash.Commands, Cash.State>() {
          * A command stating that money has been withdrawn from the shared ledger and is now accounted for
          * in some other way.
          */
-        data class Exit(override val amount: Amount<Issued<Currency>>) : Commands, FungibleAsset.Commands.Exit<Currency>
+        data class Exit(override val amount: Amount<Issued<Currency>>) : FungibleAsset.Commands.Exit<Currency>, Commands
     }
 
     /**
@@ -201,7 +201,6 @@ class Cash : OnLedgerAsset<Currency, Cash.Commands, Cash.State>() {
         val outputAmount = outputs.sumCash()
         val cashCommands = tx.commands.select<Commands.Issue>()
         requireThat {
-            "the issue command has a nonce" using (issueCommand.value.nonce != 0L)
             // TODO: This doesn't work with the trader demo, so use the underlying key instead
             // "output states are issued by a command signer" by (issuer.party in issueCommand.signingParties)
             "output states are issued by a command signer" using (issuer.party.owningKey in issueCommand.signers)

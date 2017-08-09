@@ -147,7 +147,6 @@ class CommodityContract : OnLedgerAsset<Commodity, CommodityContract.Commands, C
         val outputAmount = outputs.sumCommodities()
         val commodityCommands = tx.commands.select<CommodityContract.Commands>()
         requireThat {
-            "the issue command has a nonce" using (issueCommand.value.nonce != 0L)
             "output deposits are owned by a command signer" using (issuer.party in issueCommand.signingParties)
             "output values sum to more than the inputs" using (outputAmount > inputAmount)
             "there is only a single issue command" using (commodityCommands.count() == 1)
