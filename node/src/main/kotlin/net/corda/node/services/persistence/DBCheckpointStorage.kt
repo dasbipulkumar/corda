@@ -1,12 +1,10 @@
 package net.corda.node.services.persistence
 
 import net.corda.core.crypto.SecureHash
-import net.corda.core.serialization.SerializationDefaults.CHECKPOINT_CONTEXT
 import net.corda.core.serialization.SerializedBytes
-import net.corda.core.serialization.deserialize
-import net.corda.core.serialization.serialize
 import net.corda.node.services.api.Checkpoint
 import net.corda.node.services.api.CheckpointStorage
+import net.corda.node.services.statemachine.FlowStateMachineImpl
 import net.corda.node.utilities.*
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.statements.InsertStatement
@@ -22,16 +20,20 @@ class DBCheckpointStorage : CheckpointStorage {
         val checkpoint = blob("checkpoint")
     }
 
-    private class CheckpointMap : AbstractJDBCHashMap<SecureHash, SerializedBytes<Checkpoint>, Table>(Table, loadOnInit = false) {
+    private class CheckpointMap : AbstractJDBCHashMap<SecureHash, SerializedBytes<FlowStateMachineImpl<*>>, Table>(Table, loadOnInit = false) {
         override fun keyFromRow(row: ResultRow): SecureHash = row[table.checkpointId]
 
-        override fun valueFromRow(row: ResultRow): SerializedBytes<Checkpoint> = bytesFromBlob(row[table.checkpoint])
+        override fun valueFromRow(row: ResultRow): SerializedBytes<FlowStateMachineImpl<*>> = bytesFromBlob(row[table.checkpoint])
 
-        override fun addKeyToInsert(insert: InsertStatement, entry: Map.Entry<SecureHash, SerializedBytes<Checkpoint>>, finalizables: MutableList<() -> Unit>) {
+        override fun addKeyToInsert(insert: InsertStatement,
+                                    entry: Map.Entry<SecureHash, SerializedBytes<FlowStateMachineImpl<*>>>,
+                                    finalizables: MutableList<() -> Unit>) {
             insert[table.checkpointId] = entry.key
         }
 
-        override fun addValueToInsert(insert: InsertStatement, entry: Map.Entry<SecureHash, SerializedBytes<Checkpoint>>, finalizables: MutableList<() -> Unit>) {
+        override fun addValueToInsert(insert: InsertStatement,
+                                      entry: Map.Entry<SecureHash, SerializedBytes<FlowStateMachineImpl<*>>>,
+                                      finalizables: MutableList<() -> Unit>) {
             insert[table.checkpoint] = bytesToBlob(entry.value, finalizables)
         }
     }
@@ -39,7 +41,7 @@ class DBCheckpointStorage : CheckpointStorage {
     private val checkpointStorage = synchronizedMap(CheckpointMap())
 
     override fun addCheckpoint(checkpoint: Checkpoint) {
-        checkpointStorage.put(checkpoint.id, checkpoint.serialize(context = CHECKPOINT_CONTEXT))
+        checkpointStorage.put(checkpoint.id, checkpoint.serializedFiber)
     }
 
     override fun removeCheckpoint(checkpoint: Checkpoint) {
@@ -48,8 +50,8 @@ class DBCheckpointStorage : CheckpointStorage {
 
     override fun forEach(block: (Checkpoint) -> Boolean) {
         synchronized(checkpointStorage) {
-            for (checkpoint in checkpointStorage.values) {
-                if (!block(checkpoint.deserialize(context = CHECKPOINT_CONTEXT))) {
+            for (serialisedFiber in checkpointStorage.values) {
+                if (!block(Checkpoint(serialisedFiber))) {
                     break
                 }
             }
