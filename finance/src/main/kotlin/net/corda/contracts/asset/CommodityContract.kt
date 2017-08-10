@@ -66,7 +66,7 @@ class CommodityContract : OnLedgerAsset<Commodity, CommodityContract.Commands, C
 
     // Just for grouping
     @CordaSerializable
-    interface Commands : FungibleAsset.Commands {
+    interface Commands : CommandData {
         /**
          * A command stating that money has been moved, optionally to fulfil another contract.
          *
@@ -74,18 +74,18 @@ class CommodityContract : OnLedgerAsset<Commodity, CommodityContract.Commands, C
          * should take the moved states into account when considering whether it is valid. Typically this will be
          * null.
          */
-        data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
+        data class Move(override val contractHash: SecureHash? = null) : MoveCommand
 
         /**
          * Allows new commodity states to be issued into existence.
          */
-        class Issue : TypeOnlyCommandData(), Commands
+        class Issue : TypeOnlyCommandData()
 
         /**
          * A command stating that money has been withdrawn from the shared ledger and is now accounted for
          * in some other way.
          */
-        data class Exit(override val amount: Amount<Issued<Commodity>>) : Commands, FungibleAsset.Commands.Exit<Commodity>
+        data class Exit(override val amount: Amount<Issued<Commodity>>) : FungibleAsset.ExitCommand<Commodity>
     }
 
     override fun verify(tx: LedgerTransaction) {

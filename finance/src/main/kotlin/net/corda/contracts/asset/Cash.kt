@@ -102,7 +102,7 @@ class Cash : OnLedgerAsset<Currency, Cash.Commands, Cash.State>() {
     // DOCEND 1
 
     // Just for grouping
-    interface Commands : FungibleAsset.Commands {
+    interface Commands : CommandData {
         /**
          * A command stating that money has been moved, optionally to fulfil another contract.
          *
@@ -110,18 +110,18 @@ class Cash : OnLedgerAsset<Currency, Cash.Commands, Cash.State>() {
          * should take the moved states into account when considering whether it is valid. Typically this will be
          * null.
          */
-        data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
+        data class Move(override val contractHash: SecureHash? = null) : MoveCommand
 
         /**
          * Allows new cash states to be issued into existence.
          */
-        class Issue : TypeOnlyCommandData(), Commands
+        class Issue : TypeOnlyCommandData()
 
         /**
          * A command stating that money has been withdrawn from the shared ledger and is now accounted for
          * in some other way.
          */
-        data class Exit(override val amount: Amount<Issued<Currency>>) : FungibleAsset.Commands.Exit<Currency>, Commands
+        data class Exit(override val amount: Amount<Issued<Currency>>) : FungibleAsset.ExitCommand<Currency>
     }
 
     /**

@@ -74,13 +74,13 @@ class DummyFungibleContract : OnLedgerAsset<Currency, DummyFungibleContract.Comm
         override fun supportedSchemas(): Iterable<MappedSchema> = listOf(SampleCashSchemaV1, SampleCashSchemaV2, SampleCashSchemaV3)
     }
 
-    interface Commands : FungibleAsset.Commands {
+    interface Commands : CommandData {
 
-        data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
+        data class Move(override val contractHash: SecureHash? = null) : MoveCommand
 
-        class Issue : TypeOnlyCommandData(), Commands
+        class Issue : TypeOnlyCommandData()
 
-        data class Exit(override val amount: Amount<Issued<Currency>>) : FungibleAsset.Commands.Exit<Currency>, Commands
+        data class Exit(override val amount: Amount<Issued<Currency>>) : FungibleAsset.ExitCommand<Currency>
     }
 
     override fun deriveState(txState: TransactionState<State>, amount: Amount<Issued<Currency>>, owner: AbstractParty)

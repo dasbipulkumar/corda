@@ -186,12 +186,12 @@ class Obligation<P : Any> : Contract {
 
     // Just for grouping
     @CordaSerializable
-    interface Commands : FungibleAsset.Commands {
+    interface Commands : CommandData {
         /**
          * Net two or more obligation states together in a close-out netting style. Limited to bilateral netting
          * as only the beneficiary (not the obligor) needs to sign.
          */
-        data class Net(override val type: NetType) : NetCommand, Commands
+        data class Net(override val type: NetType) : NetCommand
 
         /**
          * A command stating that a debt has been moved, optionally to fulfil another contract.
@@ -200,25 +200,25 @@ class Obligation<P : Any> : Contract {
          * should take the moved states into account when considering whether it is valid. Typically this will be
          * null.
          */
-        data class Move(override val contractHash: SecureHash? = null) : FungibleAsset.Commands.Move, Commands
+        data class Move(override val contractHash: SecureHash? = null) : MoveCommand
 
         /**
          * Allows new obligation states to be issued into existence.
          */
-        class Issue : TypeOnlyCommandData(), Commands
+        class Issue : TypeOnlyCommandData()
 
         /**
          * A command stating that the obligor is settling some or all of the amount owed by transferring a suitable
          * state object to the beneficiary. If this reduces the balance to zero, the state object is destroyed.
          * @see [MoveCommand].
          */
-        data class Settle<P : Any>(val amount: Amount<Issued<Terms<P>>>) : Commands
+        data class Settle<P : Any>(val amount: Amount<Issued<Terms<P>>>) : CommandData
 
         /**
          * A command stating that the beneficiary is moving the contract into the defaulted state as it has not been settled
          * by the due date, or resetting a defaulted contract back to the issued state.
          */
-        data class SetLifecycle(val lifecycle: Lifecycle) : Commands {
+        data class SetLifecycle(val lifecycle: Lifecycle) : CommandData {
             val inverse: Lifecycle
                 get() = when (lifecycle) {
                     Lifecycle.NORMAL -> Lifecycle.DEFAULTED
@@ -230,7 +230,7 @@ class Obligation<P : Any> : Contract {
          * A command stating that the debt is being released by the beneficiary. Normally would indicate
          * either settlement outside of the ledger, or that the obligor is unable to pay.
          */
-        data class Exit<P : Any>(override val amount: Amount<Issued<Terms<P>>>) : FungibleAsset.Commands.Exit<Terms<P>>, Commands
+        data class Exit<P : Any>(override val amount: Amount<Issued<Terms<P>>>) : FungibleAsset.ExitCommand<Terms<P>>
     }
 
     override fun verify(tx: LedgerTransaction) {
