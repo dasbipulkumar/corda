@@ -38,15 +38,6 @@ interface IdentityService {
     fun verifyAndRegisterIdentity(identity: PartyAndCertificate)
 
     /**
-     * Verify an anonymous identity.
-     *
-     * @param identity a party representing a legal entity in a transaction.
-     * @throws IllegalArgumentException if the certificate path is invalid.
-     */
-    @Throws(CertificateExpiredException::class, CertificateNotYetValidException::class, InvalidAlgorithmParameterException::class)
-    fun verifyIdentity(identity: PartyAndCertificate)
-
-    /**
      * Asserts that an anonymous party maps to the given full party, by looking up the certificate chain associated with
      * the anonymous party and resolving it back to the given full party.
      *

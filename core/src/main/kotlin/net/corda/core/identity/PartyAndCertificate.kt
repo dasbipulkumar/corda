@@ -4,7 +4,8 @@ import net.corda.core.serialization.CordaSerializable
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.cert.X509CertificateHolder
 import java.security.PublicKey
-import java.security.cert.CertPath
+import java.security.cert.*
+import java.util.*
 
 /**
  * A full party plus the X.509 certificate and path linking the party back to a trust root. Equality of
@@ -30,4 +31,18 @@ data class PartyAndCertificate(val party: Party,
 
     override fun hashCode(): Int = party.hashCode()
     override fun toString(): String = party.toString()
+
+    /**
+     * Verify that the given certificate path is valid and leads to the owning key of the party.
+     */
+    fun verify(trustAnchor: TrustAnchor): PKIXCertPathValidatorResult {
+        require(certPath.certificates.first() is X509Certificate) { "Subject certificate must be an X.509 certificate" }
+        require(Arrays.equals(party.owningKey.encoded, certificate.subjectPublicKeyInfo.encoded)) { "Certificate public key must match party owning key" }
+        require(Arrays.equals(certPath.certificates.first().encoded, certificate.encoded)) { "Certificate path must link to certificate" }
+
+        val validatorParameters = PKIXParameters(setOf(trustAnchor))
+        val validator = CertPathValidator.getInstance("PKIX")
+        validatorParameters.isRevocationEnabled = false
+        return validator.validate(certPath, validatorParameters) as PKIXCertPathValidatorResult
+    }
 }

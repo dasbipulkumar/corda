@@ -69,7 +69,7 @@ class InMemoryIdentityService(identities: Iterable<PartyAndCertificate> = emptyS
     override fun verifyAndRegisterIdentity(identity: PartyAndCertificate) {
         require(identity.certPath.certificates.size >= 2) { "Certificate path must at least include subject and issuing certificates" }
         // Validate the chain first, before we do anything clever with it
-        validateCertificatePath(identity.party, identity.certPath)
+        identity.verify(trustAnchor)
 
         log.trace { "Registering identity $identity" }
         require(Arrays.equals(identity.certificate.subjectPublicKeyInfo.encoded, identity.owningKey.encoded)) { "Party certificate must end with party's public key" }
@@ -130,32 +130,5 @@ class InMemoryIdentityService(identities: Iterable<PartyAndCertificate> = emptyS
         require(actual is X509Certificate && actual.publicKey == party.owningKey) { "Next certificate in the path must match the party key ${party.owningKey.toStringShort()}." }
         val target = path.certificates.first()
         require(target is X509Certificate && target.publicKey == anonymousParty.owningKey) { "Certificate path starts with a certificate for the anonymous party" }
-    }
-
-    override fun verifyIdentity(identity: PartyAndCertificate) {
-        val (party, _, path) = identity
-        require(path.certificates.size > 1) { "Certificate path must contain at least two certificates" }
-        // Validate the chain first, before we do anything clever with it
-        validateCertificatePath(party, path)
-        require(path.certificates.first() is X509Certificate) { "Subject certificate must be an X.509 certificate" }
-    }
-
-    /**
-     * Verify that the given certificate path is valid and leads to the owning key of the party.
-     */
-    private fun validateCertificatePath(party: AbstractParty, path: CertPath): PKIXCertPathValidatorResult {
-        // Check that the path ends with a certificate for the correct party.
-        val endCertificate = path.certificates.first()
-        // Ensure the key is in the correct format for comparison.
-        // TODO: Replace with a Bouncy Castle cert path so we can avoid Sun internal classes appearing unexpectedly.
-        //       For now we have to deal with this potentially being an [X509Key] which is Sun's equivalent to
-        //       [SubjectPublicKeyInfo] but doesn't compare properly with [PublicKey].
-        val endKey = Crypto.decodePublicKey(endCertificate.publicKey.encoded)
-        require(endKey == party.owningKey) { "Certificate path validation must end at owning key ${party.owningKey.toStringShort()}, found ${endKey.toStringShort()}" }
-
-        val validatorParameters = PKIXParameters(setOf(trustAnchor))
-        val validator = CertPathValidator.getInstance("PKIX")
-        validatorParameters.isRevocationEnabled = false
-        return validator.validate(path, validatorParameters) as PKIXCertPathValidatorResult
     }
 }
