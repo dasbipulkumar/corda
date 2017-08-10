@@ -283,7 +283,6 @@ fun <DI : DriverDSLExposedInterface, D : DriverDSLInternalInterface, A> genericD
         coerce: (D) -> DI,
         dsl: DI.() -> A
 ): A {
-    initialiseFlowStackSnapshotFactory()
     if (initialiseSerialization) initialiseTestSerialization()
     val shutdownHook = addShutdownHook(driverDsl::shutdown)
     try {

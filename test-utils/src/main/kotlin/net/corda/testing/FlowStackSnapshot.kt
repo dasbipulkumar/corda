@@ -16,30 +16,7 @@ import java.nio.file.Path
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-/**
- * Singleton holding a reference to the [FlowStackSnapshotFactoryImpl].
- */
-class FlowStackSnapshotFactoryProvider private constructor() {
-
-    private object Holder {
-        val INSTANCE = FlowStackSnapshotFactoryImpl()
-    }
-
-    companion object {
-        val instance: FlowStackSnapshotFactory by lazy { Holder.INSTANCE }
-    }
-}
-
-/**
- * Replaces the default implementation (i.e. one that throws [NotImplementedError] exception) of the flow stack
- * snapshot logic with the [FlowStackSnapshotFactoryImpl].
- */
-fun initialiseFlowStackSnapshotFactory() {
-    FlowStackSnapshotDefaults.FLOW_STACK_SNAPSHOT_FACTORY = FlowStackSnapshotFactoryProvider.instance
-}
-
-private class FlowStackSnapshotFactoryImpl : FlowStackSnapshotFactory {
-
+class FlowStackSnapshotFactoryImpl : FlowStackSnapshotFactory {
     @Suspendable
     override fun getFlowStackSnapshot(flowClass: Class<*>): FlowStackSnapshot? {
         var snapshot: FlowStackSnapshot? = null
