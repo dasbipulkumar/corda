@@ -161,7 +161,7 @@ abstract class NodeBasedTest : TestDependencyInjectionBase() {
 
         val parsedConfig = config.parseAs<FullNodeConfiguration>()
         val node = Node(parsedConfig, parsedConfig.calculateServices(), MOCK_VERSION_INFO.copy(platformVersion = platformVersion),
-                if (parsedConfig.useTestClock) TestClock() else NodeClock(), initialiseSerialization = false)
+                initialiseSerialization = false)
         node.start()
         nodes += node
         thread(name = legalName.commonName) {
