@@ -65,7 +65,8 @@ class SerializerFactory(val whitelist: ClassWhitelist = AllWhitelist) {
                 return serializersByType.computeIfAbsent(declaredType) {
                     CollectionSerializer(declaredType as? ParameterizedType ?: DeserializedParameterizedType(declaredClass, arrayOf(AnyType), null), this)
                 }
-            } else if (Map::class.java.isAssignableFrom(declaredClass)) {
+            } else if ((Map::class.java.isAssignableFrom(declaredClass))
+                    || (Dictionary::class.java.isAssignableFrom(declaredClass))) {
                 return serializersByType.computeIfAbsent(declaredClass) {
                     makeMapSerializer(declaredType as? ParameterizedType ?: DeserializedParameterizedType(declaredClass, arrayOf(AnyType, AnyType), null))
                 }
