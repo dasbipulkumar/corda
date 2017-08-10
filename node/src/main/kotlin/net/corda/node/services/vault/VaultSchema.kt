@@ -29,7 +29,7 @@ object VaultSchemaV1 : MappedSchema(schemaFamily = VaultSchema.javaClass, versio
     class VaultStates(
             /** refers to the X500Name of the notary a state is attached to */
             @Column(name = "notary_name")
-            var notaryName: String,
+            var notaryName: AbstractParty,
 
             /** references a concrete ContractState that is [QueryableState] and has a [MappedSchema] */
             @Column(name = "contract_state_class_name")
@@ -72,7 +72,7 @@ object VaultSchemaV1 : MappedSchema(schemaFamily = VaultSchema.javaClass, versio
 
             /** X500Name of participant parties **/
             @ElementCollection
-            var participants: Set<String>,
+            var participants: Set<AbstractParty>,
 
             /**
              *  Represents a [LinearState] [UniqueIdentifier]
@@ -93,7 +93,7 @@ object VaultSchemaV1 : MappedSchema(schemaFamily = VaultSchema.javaClass, versio
                 this(externalId = uid.externalId,
                      uuid = uid.id,
                      dealReference = _dealReference,
-                     participants = _participants.map{ it.nameOrNull().toString() }.toSet() )
+                     participants = _participants.toSet())
     }
 
     @Entity
@@ -103,7 +103,7 @@ object VaultSchemaV1 : MappedSchema(schemaFamily = VaultSchema.javaClass, versio
 
             /** X500Name of participant parties **/
             @ElementCollection
-            var participants: Set<String>,
+            var participants: Set<AbstractParty>,
 
             /** [OwnableState] attributes */
             @Column(name = "owner_id")
@@ -122,7 +122,7 @@ object VaultSchemaV1 : MappedSchema(schemaFamily = VaultSchema.javaClass, versio
             /** Issuer attributes */
 
             /** X500Name of issuer party **/
-            var issuer: String,
+            var issuer: AbstractParty,
 
             @Column(name = "issuer_reference")
             var issuerRef: ByteArray
@@ -130,8 +130,8 @@ object VaultSchemaV1 : MappedSchema(schemaFamily = VaultSchema.javaClass, versio
         constructor(_owner: AbstractParty, _quantity: Long, _issuerParty: AbstractParty, _issuerRef: OpaqueBytes, _participants: List<AbstractParty>) :
                 this(owner = _owner,
                      quantity = _quantity,
-                     issuer = _issuerParty.nameOrNull().toString(),
+                     issuer = _issuerParty,
                      issuerRef = _issuerRef.bytes,
-                     participants =  _participants.map { it.nameOrNull().toString() }.toSet())
+                     participants =  _participants.toSet())
     }
 }
