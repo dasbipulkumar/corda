@@ -10,7 +10,8 @@ import java.util.*
 /**
  * A full party plus the X.509 certificate and path linking the party back to a trust root. Equality of
  * [PartyAndCertificate] instances is based on the party only, as certificate and path are data associated with the party,
- * not part of the identifier themselves.
+ * not part of the identifier themselves. While party and certificate can both be derived from the certificate path,
+ * this class exists in order to ensure the implementation classes of certificates and party public keys are kept stable.
  */
 @CordaSerializable
 data class PartyAndCertificate(val party: Party,
