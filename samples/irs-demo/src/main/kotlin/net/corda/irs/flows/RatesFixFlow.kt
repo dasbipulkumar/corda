@@ -33,7 +33,7 @@ open class RatesFixFlow(protected val tx: TransactionBuilder,
                         protected val fixOf: FixOf,
                         protected val expectedRate: BigDecimal,
                         protected val rateTolerance: BigDecimal,
-                        override val progressTracker: ProgressTracker = RatesFixFlow.tracker(fixOf.name)) : FlowLogic<DigitalSignature.WithKey>() {
+                        override val progressTracker: ProgressTracker = RatesFixFlow.tracker(fixOf.name)) : FlowLogic<TransactionSignature>() {
 
     companion object {
         class QUERYING(val name: String) : ProgressTracker.Step("Querying oracle for $name interest rate")
@@ -54,7 +54,7 @@ open class RatesFixFlow(protected val tx: TransactionBuilder,
 
     // DOCSTART 2
     @Suspendable
-    override fun call(): DigitalSignature.WithKey {
+    override fun call(): TransactionSignature {
         progressTracker.currentStep = progressTracker.steps[1]
         val fix = subFlow(FixQueryFlow(fixOf, oracle))
         progressTracker.currentStep = WORKING

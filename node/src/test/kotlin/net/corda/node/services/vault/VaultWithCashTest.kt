@@ -44,9 +44,10 @@ class VaultWithCashTest : TestDependencyInjectionBase() {
     @Before
     fun setUp() {
         LogHelper.setLevel(VaultWithCashTest::class)
-        val databaseAndServices = makeTestDatabaseAndMockServices(keys = listOf(DUMMY_CASH_ISSUER_KEY))
+        val databaseAndServices = makeTestDatabaseAndMockServices(keys = listOf(DUMMY_CASH_ISSUER_KEY, DUMMY_NOTARY_KEY))
         database = databaseAndServices.first
         services = databaseAndServices.second
+        issuerServices = MockServices(DUMMY_CASH_ISSUER_KEY, MEGA_CORP_KEY)
     }
 
     @After
@@ -120,7 +121,7 @@ class VaultWithCashTest : TestDependencyInjectionBase() {
         database.transaction {
             // A tx that sends us money.
             services.fillWithSomeTestCash(100.DOLLARS, issuerServices, DUMMY_NOTARY, 10, 10, Random(0L), ownedBy = AnonymousParty(freshKey),
-                    issuedBy = DUMMY_CASH_ISSUER)
+                    issuedBy = MEGA_CORP.ref(1))
             println("Cash balance: ${services.getCashBalance(USD)}")
 
             assertThat(vaultQuery.queryBy<Cash.State>().states).hasSize(10)

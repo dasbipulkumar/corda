@@ -89,7 +89,7 @@ class VaultQueryTests : TestDependencyInjectionBase() {
         _database.transaction {
 
             // create new states
-            services.fillWithSomeTestCash(100.DOLLARS, notaryServices, CASH_NOTARY, 10, 10, Random(0L))
+            services.fillWithSomeTestCash(100.DOLLARS, notaryServices, DUMMY_NOTARY, 10, 10, Random(0L))
             val linearStatesXYZ = services.fillWithSomeTestLinearStates(1, "XYZ")
             val linearStatesJKL = services.fillWithSomeTestLinearStates(2, "JKL")
             services.fillWithSomeTestLinearStates(3, "ABC")
