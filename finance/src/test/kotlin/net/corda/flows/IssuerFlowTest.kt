@@ -2,19 +2,18 @@ package net.corda.flows
 
 import net.corda.contracts.asset.Cash
 import net.corda.core.concurrent.CordaFuture
-import net.corda.testing.contracts.calculateRandomlySizedAmounts
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.DOLLARS
 import net.corda.core.contracts.currency
 import net.corda.core.flows.FlowException
 import net.corda.core.identity.Party
+import net.corda.core.internal.concurrent.transpose
 import net.corda.core.node.services.Vault
 import net.corda.core.node.services.trackBy
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.utilities.OpaqueBytes
-import net.corda.core.transactions.SignedTransaction
 import net.corda.core.utilities.getOrThrow
-import net.corda.flows.IssuerFlow.IssuanceRequester
+import net.corda.testing.contracts.calculateRandomlySizedAmounts
 import net.corda.testing.expect
 import net.corda.testing.expectEvents
 import net.corda.testing.node.MockNetwork
@@ -31,11 +30,9 @@ import kotlin.test.assertFailsWith
 @RunWith(Parameterized::class)
 class IssuerFlowTest(val anonymous: Boolean) {
     companion object {
-        @Parameterized.Parameters
+        @Parameterized.Parameters(name = "anonymous={0}")
         @JvmStatic
-        fun data(): Collection<Array<Boolean>> {
-            return listOf(arrayOf(false), arrayOf(true))
-        }
+        fun params() = listOf(false, true)
     }
 
     lateinit var mockNet: MockNetwork
@@ -149,9 +146,7 @@ class IssuerFlowTest(val anonymous: Boolean) {
             runIssuerAndIssueRequester(bankOfCordaNode, bankClientNode, Amount(pennies, amount.token),
                     bankClientNode.info.legalIdentity, OpaqueBytes.of(123), notary)
         }
-        handles.forEach {
-            require(it.get().stx is SignedTransaction)
-        }
+        handles.transpose().getOrThrow()
     }
 
     private fun runIssuerAndIssueRequester(issuerNode: MockNode,
@@ -159,9 +154,9 @@ class IssuerFlowTest(val anonymous: Boolean) {
                                            amount: Amount<Currency>,
                                            issueToParty: Party,
                                            ref: OpaqueBytes,
-                                           notaryParty: Party): CordaFuture<AbstractCashFlow.Result> {
+                                           notaryParty: Party): CordaFuture<IssuerFlow.IssuanceResult> {
         val issueToPartyAndRef = issueToParty.ref(ref)
-        val issueRequest = IssuanceRequester(amount, issueToParty, issueToPartyAndRef.reference, issuerNode.info.legalIdentity, notaryParty,
+        val issueRequest = IssuerFlow.IssuanceRequester(amount, issueToParty, issueToPartyAndRef.reference, issuerNode.info.legalIdentity, notaryParty,
                 anonymous)
         return issueToNode.services.startFlow(issueRequest).resultFuture
     }

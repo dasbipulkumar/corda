@@ -16,6 +16,7 @@ import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.messaging.FlowHandle
 import net.corda.core.node.services.ServiceInfo
 import net.corda.core.node.services.ServiceType
+import net.corda.core.transactions.SignedTransaction
 import net.corda.core.utilities.OpaqueBytes
 import net.corda.flows.*
 import net.corda.node.services.startFlowPermission
@@ -130,9 +131,9 @@ class ExplorerSimulation(val options: OptionSet) {
 
     private fun startSimulation(eventGenerator: EventGenerator, maxIterations: Int) {
         // Log to logger when flow finish.
-        fun FlowHandle<AbstractCashFlow.Result>.log(seq: Int, name: String) {
+        fun FlowHandle<SignedTransaction>.log(seq: Int, name: String) {
             val out = "[$seq] $name $id :"
-            returnValue.thenMatch({ (stx) ->
+            returnValue.thenMatch({ stx ->
                 Main.log.info("$out ${stx.id} ${(stx.tx.outputs.first().data as Cash.State).amount}")
             }, {
                 Main.log.info("$out ${it.message}")
@@ -173,12 +174,15 @@ class ExplorerSimulation(val options: OptionSet) {
                 currencies = listOf(GBP, USD)
         )
         val maxIterations = 100_000
-        val anonymous = true
         // Pre allocate some money to each party.
-        eventGenerator.parties.forEach {
+        eventGenerator.parties.forEach { party ->
             for (ref in 0..1) {
                 for ((currency, issuer) in issuers) {
-                    CashFlowCommand.IssueCash(Amount(1_000_000, currency), OpaqueBytes(ByteArray(1, { ref.toByte() })), it, notaryNode.nodeInfo.notaryIdentity, anonymous).startFlow(issuer)
+                    CashFlowCommand.IssueCash(
+                            Amount(1_000_000, currency),
+                            OpaqueBytes.of(ref.toByte()),
+                            party,
+                            notaryNode.nodeInfo.notaryIdentity).startFlow(issuer)
                 }
             }
         }

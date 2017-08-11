@@ -4,6 +4,8 @@ import co.paralleluniverse.fibers.Suspendable
 import net.corda.contracts.asset.Cash
 import net.corda.core.contracts.*
 import net.corda.core.flows.*
+import net.corda.core.identity.AbstractParty
+import net.corda.core.identity.AnonymousParty
 import net.corda.core.identity.Party
 import net.corda.core.serialization.CordaSerializable
 import net.corda.core.transactions.SignedTransaction
@@ -20,12 +22,13 @@ import java.util.*
  *  useful for creation of fake assets.
  */
 object IssuerFlow {
+    /**
+     * Issuance result from [IssuanceRequester]. It contains the issuance [SignedTransaction] of a [Cash.State] which belongs
+     * to the party which requested the issuance, the [recipient]. This will be a confidential identity of the requesting party
+     * generated for the transaction if [IssuanceRequester.anonymous] was specified, else it will be the well known identity.
+     */
     @CordaSerializable
-    data class IssuanceRequestState(val amount: Amount<Currency>,
-                                    val issueToParty: Party,
-                                    val issuerPartyRef: OpaqueBytes,
-                                    val notaryParty: Party,
-                                    val anonymous: Boolean)
+    data class IssuanceResult(val transaction: SignedTransaction, val recipient: AbstractParty)
 
     /**
      * IssuanceRequester should be used by a client to ask a remote node to issue some [FungibleAsset] with the given details.
@@ -37,22 +40,22 @@ object IssuerFlow {
     @InitiatingFlow
     @StartableByRPC
     class IssuanceRequester(val amount: Amount<Currency>,
-                            val issueToParty: Party,
+                            val issueTo: Party,
                             val issueToPartyRef: OpaqueBytes,
-                            val issuerBankParty: Party,
-                            val notaryParty: Party,
-                            val anonymous: Boolean) : FlowLogic<AbstractCashFlow.Result>() {
+                            val issuerBank: Party,
+                            val notary: Party,
+                            val anonymous: Boolean) : FlowLogic<IssuanceResult>() {
         @Suspendable
         @Throws(CashException::class)
-        override fun call(): AbstractCashFlow.Result {
-            val issueRequest = IssuanceRequestState(amount, issueToParty, issueToPartyRef, notaryParty, anonymous)
-            return sendAndReceive<AbstractCashFlow.Result>(issuerBankParty, issueRequest).unwrap { res ->
-                val tx = res.stx.tx
-                val expectedAmount = Amount(amount.quantity, Issued(issuerBankParty.ref(issueToPartyRef), amount.token))
-                val cashOutputs = tx.filterOutputs<Cash.State> { state -> state.owner == res.recipient }
-                require(cashOutputs.size == 1) { "Require a single cash output paying ${res.recipient}, found ${tx.outputs}" }
+        override fun call(): IssuanceResult {
+            val request = IssuanceRequest(amount, issueTo, issueToPartyRef, notary, anonymous)
+            return sendAndReceive<IssuanceResult>(issuerBank, request).unwrap { result ->
+                val wtx = result.transaction.tx
+                val expectedAmount = Amount(amount.quantity, Issued(issuerBank.ref(issueToPartyRef), amount.token))
+                val cashOutputs = wtx.filterOutputs<Cash.State> { it.owner == result.recipient }
+                require(cashOutputs.size == 1) { "Require a single cash output paying ${result.recipient}, found ${wtx.outputs}" }
                 require(cashOutputs.single().amount == expectedAmount) { "Require payment of $expectedAmount"}
-                res
+                result
             }
         }
     }
@@ -62,7 +65,8 @@ object IssuerFlow {
      * Returns the generated transaction representing the transfer of the [Issued] [FungibleAsset] to the issue requester.
      */
     @InitiatedBy(IssuanceRequester::class)
-    class Issuer(val otherParty: Party) : FlowLogic<SignedTransaction>() {
+    @InitiatingFlow
+    class Issuer(val requester: Party) : FlowLogic<Unit>() {
         companion object {
             object AWAITING_REQUEST : ProgressTracker.Step("Awaiting issuance request")
             object ISSUING : ProgressTracker.Step("Self issuing asset")
@@ -77,41 +81,65 @@ object IssuerFlow {
 
         @Suspendable
         @Throws(CashException::class)
-        override fun call(): SignedTransaction {
+        override fun call() {
             progressTracker.currentStep = AWAITING_REQUEST
-            val issueRequest = receive<IssuanceRequestState>(otherParty).unwrap {
+            val request = receive<IssuanceRequest>(requester).unwrap {
                 // validate request inputs (for example, lets restrict the types of currency that can be issued)
                 if (it.amount.token !in VALID_CURRENCIES) throw FlowException("Currency must be one of $VALID_CURRENCIES")
                 it
             }
             // TODO: parse request to determine Asset to issue
-            val txn = issueCashTo(issueRequest.amount, issueRequest.issueToParty, issueRequest.issuerPartyRef, issueRequest.notaryParty, issueRequest.anonymous)
+            val result = issueCashTo(request)
             progressTracker.currentStep = SENDING_CONFIRM
-            send(otherParty, txn)
-            return txn.stx
+            send(requester, result)
         }
 
         @Suspendable
-        private fun issueCashTo(amount: Amount<Currency>,
-                                issueTo: Party,
-                                issuerPartyRef: OpaqueBytes,
-                                notaryParty: Party,
-                                anonymous: Boolean): AbstractCashFlow.Result {
+        private fun issueCashTo(request: IssuanceRequest): IssuanceResult {
             // invoke Cash subflow to issue Asset
             progressTracker.currentStep = ISSUING
-            val issueRecipient = serviceHub.myInfo.legalIdentity
-            val issueCashFlow = CashIssueFlow(amount, issuerPartyRef, issueRecipient, notaryParty, anonymous)
+            val me = serviceHub.myInfo.legalIdentity
+            val anonymousMe = if (request.anonymous) subFlow(SwapIdentitiesFlow(me)).ourIdentity.party else me
+            val issueCashFlow = CashIssueFlow(request.amount, request.issuerPartyRef, anonymousMe, request.notary)
             val issueTx = subFlow(issueCashFlow)
             // NOTE: issueCashFlow performs a Broadcast (which stores a local copy of the txn to the ledger)
             // short-circuit when issuing to self
-            if (issueTo == serviceHub.myInfo.legalIdentity)
-                return issueTx
+            if (request.issueTo == me)
+                return IssuanceResult(issueTx, anonymousMe)
             // now invoke Cash subflow to Move issued assetType to issue requester
             progressTracker.currentStep = TRANSFERRING
-            val moveCashFlow = CashPaymentFlow(amount, issueTo, anonymous)
-            val moveTx = subFlow(moveCashFlow)
+            val anonymousIssueTo = if (request.anonymous) {
+                subFlow(AskAnonymousIdentityFlow(request.issueTo))
+            } else {
+                request.issueTo
+            }
+            val moveTx = subFlow(CashPaymentFlow(request.amount, anonymousIssueTo))
             // NOTE: CashFlow PayCash calls FinalityFlow which performs a Broadcast (which stores a local copy of the txn to the ledger)
-            return moveTx
+            return IssuanceResult(moveTx, anonymousIssueTo)
         }
     }
+
+    @InitiatingFlow
+    private class AskAnonymousIdentityFlow(val otherParty: Party) : FlowLogic<AnonymousParty>() {
+        @Suspendable
+        override fun call(): AnonymousParty = subFlow(SwapIdentitiesFlow(otherParty)).theirIdentity.party
+    }
+
+    // Unfortunately this flow is needed to automatically vend anonymous identities due to the way this cash issuance
+    // workflow is designed. A better design would be to scrap IssuanceRequester.issuerBank and instead have the IssuanceRequester
+    // flow execute directly on the issuerBank node. That would remove the need for this third hop.
+    @InitiatedBy(AskAnonymousIdentityFlow::class)
+    class VendAnonymousIdentityFlow(val otherParty: Party) : FlowLogic<Unit>() {
+        @Suspendable
+        override fun call() {
+            subFlow(SwapIdentitiesFlow(otherParty))
+        }
+    }
+
+    @CordaSerializable
+    private data class IssuanceRequest(val amount: Amount<Currency>,
+                                       val issueTo: Party,
+                                       val issuerPartyRef: OpaqueBytes,
+                                       val notary: Party,
+                                       val anonymous: Boolean)
 }

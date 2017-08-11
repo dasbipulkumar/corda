@@ -10,7 +10,8 @@ import net.corda.node.services.api.ServiceHubInternal
 /** A Notary service that validates the transaction chain of the submitted transaction before committing it */
 class ValidatingNotaryService(override val services: ServiceHubInternal) : TrustedAuthorityNotaryService() {
     companion object {
-        val type = ServiceType.notary.getSubType("validating")
+        @JvmStatic
+        val type: ServiceType = ServiceType.notary.getSubType("validating")
     }
 
     override val timeWindowChecker = TimeWindowChecker(services.clock)

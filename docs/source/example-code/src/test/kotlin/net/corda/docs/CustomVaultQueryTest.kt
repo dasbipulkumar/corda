@@ -57,8 +57,8 @@ class CustomVaultQueryTest {
         val (cashBalancesAfterTopup, _) = getBalances()
 
         Assert.assertEquals(cashBalancesOriginal[GBP]?.times(2), cashBalancesAfterTopup[GBP])
-        Assert.assertEquals(cashBalancesOriginal[USD]?.times(2)  , cashBalancesAfterTopup[USD])
-        Assert.assertEquals(cashBalancesOriginal[CHF]?.times( 2), cashBalancesAfterTopup[CHF])
+        Assert.assertEquals(cashBalancesOriginal[USD]?.times(2), cashBalancesAfterTopup[USD])
+        Assert.assertEquals(cashBalancesOriginal[CHF]?.times(2), cashBalancesAfterTopup[CHF])
     }
 
     private fun issueCashForCurrency(amountToIssue: Amount<Currency>) {
@@ -66,8 +66,7 @@ class CustomVaultQueryTest {
         val flowHandle1 = nodeA.services.startFlow(CashIssueFlow(amountToIssue,
                 OpaqueBytes.of(0x01),
                 nodeA.info.legalIdentity,
-                notaryNode.info.notaryIdentity,
-                false))
+                notaryNode.info.notaryIdentity))
         // Wait for the flow to stop and print
         flowHandle1.resultFuture.getOrThrow()
     }

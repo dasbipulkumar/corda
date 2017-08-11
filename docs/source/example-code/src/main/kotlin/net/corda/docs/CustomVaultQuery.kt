@@ -77,17 +77,17 @@ object TopupIssuerFlow {
     class TopupIssuanceRequester(val issueToParty: Party,
                                  val issueToPartyRef: OpaqueBytes,
                                  val issuerBankParty: Party,
-                                 val notaryParty: Party) : FlowLogic<List<AbstractCashFlow.Result>>() {
+                                 val notaryParty: Party) : FlowLogic<List<SignedTransaction>>() {
         @Suspendable
         @Throws(CashException::class)
-        override fun call(): List<AbstractCashFlow.Result> {
+        override fun call(): List<SignedTransaction> {
             val topupRequest = TopupRequest(issueToParty, issueToPartyRef, notaryParty)
-            return sendAndReceive<List<AbstractCashFlow.Result>>(issuerBankParty, topupRequest).unwrap { it }
+            return sendAndReceive<List<SignedTransaction>>(issuerBankParty, topupRequest).unwrap { it }
         }
     }
 
     @InitiatedBy(TopupIssuanceRequester::class)
-    class TopupIssuer(val otherParty: Party) : FlowLogic<List<SignedTransaction>>() {
+    class TopupIssuer(val otherParty: Party) : FlowLogic<Unit>() {
         companion object {
             object AWAITING_REQUEST : ProgressTracker.Step("Awaiting issuance request")
             object ISSUING : ProgressTracker.Step("Issuing asset")
@@ -102,7 +102,7 @@ object TopupIssuerFlow {
         // DOCSTART TopupIssuer
         @Suspendable
         @Throws(CashException::class)
-        override fun call(): List<SignedTransaction> {
+        override fun call() {
             progressTracker.currentStep = AWAITING_REQUEST
             val topupRequest = receive<TopupRequest>(otherParty).unwrap {
                 it
@@ -111,29 +111,28 @@ object TopupIssuerFlow {
             val customVaultQueryService = serviceHub.cordaService(CustomVaultQuery.Service::class.java)
             val reserveLimits = customVaultQueryService.rebalanceCurrencyReserves()
 
-            val txns: List<SignedTransaction> = reserveLimits.map { amount ->
+            val stxs: List<SignedTransaction> = reserveLimits.map { amount ->
                 // request asset issue
                 logger.info("Requesting currency issue $amount")
-                val txn = issueCashTo(amount, topupRequest.issueToParty, topupRequest.issuerPartyRef)
+                val stx = issueCashTo(amount, topupRequest.issueToParty, topupRequest.issuerPartyRef)
                 progressTracker.currentStep = SENDING_TOP_UP_ISSUE_REQUEST
-                return@map txn.stx
+                return@map stx
             }
 
-            send(otherParty, txns)
-            return txns
+            send(otherParty, stxs)
         }
         // DOCEND TopupIssuer
 
         @Suspendable
         private fun issueCashTo(amount: Amount<Currency>,
                                 issueTo: Party,
-                                issuerPartyRef: OpaqueBytes): AbstractCashFlow.Result {
+                                issuerPartyRef: OpaqueBytes): SignedTransaction {
             // TODO: pass notary in as request parameter
             val notaryParty = serviceHub.networkMapCache.notaryNodes[0].notaryIdentity
             // invoke Cash subflow to issue Asset
             progressTracker.currentStep = ISSUING
             val issueRecipient = serviceHub.myInfo.legalIdentity
-            val issueCashFlow = CashIssueFlow(amount, issuerPartyRef, issueRecipient, notaryParty, anonymous = false)
+            val issueCashFlow = CashIssueFlow(amount, issuerPartyRef, issueRecipient, notaryParty)
             val issueTx = subFlow(issueCashFlow)
             // NOTE: issueCashFlow performs a Broadcast (which stores a local copy of the txn to the ledger)
             // short-circuit when issuing to self
@@ -141,7 +140,7 @@ object TopupIssuerFlow {
                 return issueTx
             // now invoke Cash subflow to Move issued assetType to issue requester
             progressTracker.currentStep = TRANSFERRING
-            val moveCashFlow = CashPaymentFlow(amount, issueTo, anonymous = false)
+            val moveCashFlow = CashPaymentFlow(amount, issueTo)
             val moveTx = subFlow(moveCashFlow)
             // NOTE: CashFlow PayCash calls FinalityFlow which performs a Broadcast (which stores a local copy of the txn to the ledger)
             return moveTx

@@ -7,8 +7,8 @@ import net.corda.core.messaging.DataFeed;
 import net.corda.core.messaging.FlowHandle;
 import net.corda.core.node.NodeInfo;
 import net.corda.core.node.services.NetworkMapCache;
+import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.utilities.OpaqueBytes;
-import net.corda.flows.AbstractCashFlow;
 import net.corda.flows.CashIssueFlow;
 import net.corda.nodeapi.User;
 import net.corda.smoketesting.NodeConfig;
@@ -22,11 +22,12 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.singletonList;
 import static kotlin.test.AssertionsKt.assertEquals;
 import static net.corda.contracts.GetBalances.getCashBalance;
 
 public class StandaloneCordaRPCJavaClientTest {
-    private List<String> perms = Collections.singletonList("ALL");
+    private List<String> perms = singletonList("ALL");
     private Set<String> permSet = new HashSet<>(perms);
     private User rpcUser = new User("user1", "test", permSet);
 
@@ -42,8 +43,8 @@ public class StandaloneCordaRPCJavaClientTest {
             port.getAndIncrement(),
             port.getAndIncrement(),
             port.getAndIncrement(),
-            Collections.singletonList("corda.notary.validating"),
-            Arrays.asList(rpcUser),
+            singletonList("corda.notary.validating"),
+            singletonList(rpcUser),
             null
     );
 
@@ -73,7 +74,7 @@ public class StandaloneCordaRPCJavaClientTest {
     public void testCashBalances() throws NoSuchFieldException, ExecutionException, InterruptedException {
         Amount<Currency> dollars123 = new Amount<>(123, Currency.getInstance("USD"));
 
-        FlowHandle<AbstractCashFlow.Result> flowHandle = rpcProxy.startFlowDynamic(CashIssueFlow.class,
+        FlowHandle<SignedTransaction> flowHandle = rpcProxy.startFlowDynamic(CashIssueFlow.class,
                 dollars123, OpaqueBytes.of("1".getBytes()),
                 notaryNode.getLegalIdentity(), notaryNode.getLegalIdentity());
         System.out.println("Started issuing cash, waiting on result");
